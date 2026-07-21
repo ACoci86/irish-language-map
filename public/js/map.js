@@ -1,11 +1,40 @@
+// ─────────────────────────────────────────────
+// 1. SETUP
+// ─────────────────────────────────────────────
+
 const map = L.map("map").setView([53.4, -8.0], 7);
 
-const testData = {
-  GALWAY: 50,
-  MAYO: 38,
-  DONEGAL: 34,
-  DUBLIN: 8,
-};
+/*L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution:
+    '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+}).addTo(map);*/
+
+// ─────────────────────────────────────────────
+// 2. STATE
+// ─────────────────────────────────────────────
+
+let countyData = {};
+let countyLayer;
+const yearSelect = document.getElementById("year-select");
+
+// ─────────────────────────────────────────────
+// 3. DATA FETCHING
+// ─────────────────────────────────────────────
+
+async function loadAbilityData(year) {
+  const response = await fetch(`/api/ability/${year}`);
+
+  if (!response.ok) {
+    throw new Error(`Could not load ability data: ${response.status}`);
+  }
+
+  countyData = await response.json();
+}
+
+// ─────────────────────────────────────────────
+// 4. PRESENTATION
+// ─────────────────────────────────────────────
 
 function getCountyColour(value) {
   if (value === undefined) {
@@ -23,25 +52,9 @@ function getCountyColour(value) {
   return "#d8eadf";
 }
 
-/*L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution:
-    '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-}).addTo(map);*/
-
-function addCountyInteraction(feature, layer) {
-  //feature info about COUNTY, e.g. COUNTY: CORK - layer is county shape
-  const countyName = feature.properties.COUNTY;
-
-  layer.bindTooltip(countyName, {
-    //layer puts that name onto the visible map shape
-    sticky: true,
-  });
-}
-
 function styleCounty(feature) {
   const countyName = feature.properties.COUNTY;
-  const value = testData[countyName];
+  const value = countyData[countyName];
 
   return {
     color: "#ffffff",
@@ -51,6 +64,27 @@ function styleCounty(feature) {
   };
 }
 
+function addCountyInteraction(feature, layer) {
+  layer.bindTooltip(
+    () => {
+      const countyName = feature.properties.COUNTY;
+      const value = countyData[countyName];
+
+      const valueText = value === undefined ? "No data" : `${value}%`;
+
+      return `<strong>${countyName}</strong><br>${valueText}`;
+    },
+    {
+      sticky: true,
+    },
+  );
+}
+
+// ─────────────────────────────────────────────
+// 5. RENDERING
+// ─────────────────────────────────────────────
+
+// Expects countyData to already be populated by loadAbilityData.
 async function loadCountyBoundaries() {
   const response = await fetch("/data/ireland-counties-web.geojson");
 
@@ -60,7 +94,7 @@ async function loadCountyBoundaries() {
 
   const geojson = await response.json();
 
-  const countyLayer = L.geoJSON(geojson, {
+  countyLayer = L.geoJSON(geojson, {
     style: styleCounty,
     onEachFeature: addCountyInteraction,
   }).addTo(map);
@@ -68,6 +102,31 @@ async function loadCountyBoundaries() {
   map.fitBounds(countyLayer.getBounds());
 }
 
-loadCountyBoundaries().catch((error) => {
+// ─────────────────────────────────────────────
+// 6. EVENTS
+// ─────────────────────────────────────────────
+
+yearSelect.addEventListener("change", async () => {
+  const selectedYear = yearSelect.value;
+
+  try {
+    await loadAbilityData(selectedYear);
+
+    countyLayer.setStyle(styleCounty);
+  } catch (error) {
+    console.error(error);
+  }
+});
+
+// ─────────────────────────────────────────────
+// 7. BOOTSTRAP
+// ─────────────────────────────────────────────
+
+async function initialiseMap() {
+  await loadAbilityData(yearSelect.value);
+  await loadCountyBoundaries();
+}
+
+initialiseMap().catch((error) => {
   console.error(error);
 });

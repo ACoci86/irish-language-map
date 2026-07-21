@@ -1,0 +1,42 @@
+{
+  "1911": {
+    "GALWAY": 54.1,
+    "MAYO": 46.1,
+    "DONEGAL": 35.2,
+    "KERRY": 38.7,
+    "CLARE": 38.6,
+    "WATERFORD": 37.2,
+    "CORK": 27.2,
+    "DUBLIN": 3.8
+  },
+  "1926": {
+    "GALWAY": 47.4,
+    "MAYO": 36.8,
+    "DONEGAL": 34.4,
+    "KERRY": 33.0,
+    "CLARE": 30.3,
+    "WATERFORD": 22.8,
+    "CORK": 21.1,
+    "DUBLIN": 7.7
+  },
+  "1936": {
+    "GALWAY": 45.8,
+    "MAYO": 34.2,
+    "DONEGAL": 35.1,
+    "KERRY": 32.1,
+    "CLARE": 29.5,
+    "WATERFORD": 22.1,
+    "CORK": 21.4,
+    "DUBLIN": 11.2
+  },
+  "1946": {
+    "GALWAY": 42.1,
+    "MAYO": 31.5,
+    "DONEGAL": 33.8,
+    "KERRY": 29.8,
+    "CLARE": 27.1,
+    "WATERFORD": 20.4,
+    "CORK": 20.2,
+    "DUBLIN": 14.5
+  }
+}

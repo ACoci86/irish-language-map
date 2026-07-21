@@ -18,19 +18,31 @@
             <%= title %>
         </h1>
         <p>An interactive history of the Irish language.</p>
+
+        <label for="year-select">Census year</label>
+<select id="year-select">
+  <% abilityYears.forEach((year) => { %>
+    <option
+      value="<%= year %>"
+      <%= year === defaultYear ? "selected" : "" %>
+    >
+      <%= year %>
+    </option>
+  <% }); %>
+</select>
+
     </header>
 
-<main>
-  <div id="map"></div>
-</main>
+    <main>
+        <div id="map"></div>
+    </main>
 
 </body>
 
- <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-     crossorigin="">
-     
-</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="">
+
+    </script>
 
 <script src="/js/map.js"></script>
 
