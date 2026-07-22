@@ -32,6 +32,17 @@ footer {
     text-align: center;
 }
 
+.data-source {
+    max-width: 640px;
+    margin: 0 auto 10px;
+    font-size: 13px;
+    color: #52514e;
+}
+
+.data-source a {
+    color: #176b4d;
+}
+
 .historical-note {
     max-width: 640px;
     margin: 0 auto 16px;
