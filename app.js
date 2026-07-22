@@ -5,6 +5,9 @@ const abilityData = require("./data/ability.json");
 
 app.set("view engine", "ejs");
 app.use(express.static("public"));
+// Serve the root data folder so the page can fetch data/ability.json the same
+// way it does on the static (GitHub Pages) build.
+app.use("/data", express.static("data"));
 
 app.get("/", (req, res) => {
   const abilityYears = Object.keys(abilityData).sort(
@@ -12,10 +15,14 @@ app.get("/", (req, res) => {
   );
 
   res.render("index", {
-    title: "Irish Language Map",
+    title: "Reported ability to speak Irish",
     abilityYears,
-    defaultYear: "1926",
+    defaultYear: "1851",
   });
+});
+
+app.get("/api/ability", (req, res) => {
+  res.json(abilityData);
 });
 
 app.get("/api/ability/:year", (req, res) => {

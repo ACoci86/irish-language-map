@@ -2,10 +2,11 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="css/style.css">
 
     <title>
         <%= title %>
@@ -15,27 +16,74 @@
 <body>
     <header>
         <h1>
-            <%= title %>
+            <span class="title-icon" aria-hidden="true">&#9752;</span>
+            Reported ability to speak Irish
         </h1>
-        <p>An interactive history of the Irish language.</p>
 
-        <label for="year-select">Census year</label>
-<select id="year-select">
-  <% abilityYears.forEach((year) => { %>
-    <option
-      value="<%= year %>"
-      <%= year === defaultYear ? "selected" : "" %>
-    >
-      <%= year %>
-    </option>
-  <% }); %>
-</select>
+        <p class="lead">
+            Percentage of people aged 3 and over who reported that they could
+            speak Irish. This measures self-reported ability, not fluency or
+            regular use.
+        </p>
+
+        <div class="controls">
+            <button id="play-button" type="button" aria-pressed="false">
+                <span aria-hidden="true">&#9654;</span> Play
+            </button>
+
+            <label for="year-select">Census year</label>
+            <select id="year-select">
+              <% abilityYears.forEach((year) => { %>
+                <option
+                  value="<%= year %>"
+                  <%= year === defaultYear ? "selected" : "" %>
+                >
+                  <%= year %>
+                </option>
+              <% }); %>
+            </select>
+        </div>
 
     </header>
 
     <main>
-        <div id="map"></div>
+        <div class="board">
+            <div class="map-box">
+                <div id="map"></div>
+            </div>
+
+            <div class="side">
+                <div id="legend" class="map-legend"></div>
+
+                <aside id="county-panel" class="county-panel" hidden>
+                    <button id="county-panel-close" class="county-panel-close" type="button" aria-label="Close">&times;</button>
+                    <div id="county-panel-body"></div>
+                </aside>
+            </div>
+        </div>
     </main>
+
+    <footer>
+        <p class="historical-note">
+            Census questions and definitions changed over time, so
+            comparisons between distant years should be interpreted
+            cautiously. Older censuses measured Irish differently, and the
+            CSO notes that results such as 1926 and 2022 are not directly
+            comparable. A new question series also began in 1996.
+        </p>
+
+        <a
+            class="github-link"
+            href="https://github.com/ACoci86/irish-language-map"
+            target="_blank"
+            rel="noopener"
+        >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+            </svg>
+            View the code on GitHub
+        </a>
+    </footer>
 
 </body>
 
@@ -44,6 +92,6 @@
 
     </script>
 
-<script src="/js/map.js"></script>
+<script src="js/map.js"></script>
 
 </html>

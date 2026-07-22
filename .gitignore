@@ -1,1 +1,4 @@
 node_modules/
+dist/
+public/data/ireland-counties.geojson
+public/data/ireland-counties-simplified.geojson

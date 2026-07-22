@@ -16,7 +16,258 @@ h1 {
     margin: 0 0 8px;
 }
 
+.title-icon {
+    color: #176b4d;
+}
+
+.lead {
+    max-width: 640px;
+    margin: 0 auto 12px;
+    line-height: 1.45;
+    color: #3a453f;
+}
+
+footer {
+    padding: 24px;
+    background-color: white;
+    border-top: 1px solid #d8ded9;
+    text-align: center;
+}
+
+.historical-note {
+    max-width: 640px;
+    margin: 0 auto 16px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #8a8f8b;
+}
+
+.github-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+    color: #176b4d;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.github-link:hover {
+    text-decoration: underline;
+}
+
+.github-link svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+.controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+#play-button {
+    padding: 6px 16px;
+    background-color: #176b4d;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+#play-button:hover {
+    background-color: #12583f;
+}
+
+#play-button[aria-pressed="true"] {
+    background-color: #6b756f;
+}
+
+main {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* The single box holding the map, legend and county card. */
+.board {
+  display: flex;
+  align-items: stretch;
+  background: white;
+  border: 1px solid #d8ded9;
+  border-radius: 8px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+/* Sized to Ireland's portrait shape so the island fills the frame instead of
+   floating in grey. */
+.map-box {
+  flex: 0 0 460px;
+}
+
 #map {
   width: 100%;
-  height: 650px;
+  height: 640px;
+}
+
+/* Legend and county card share this column beside the map. */
+.side {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 14px;
+  border-left: 1px solid #d8ded9;
+  box-sizing: border-box;
+}
+
+.county-panel {
+  position: relative;
+  box-sizing: border-box;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e1e3de;
+  color: #17221c;
+}
+
+.county-panel[hidden] {
+  display: none;
+}
+
+.county-panel-close {
+  position: absolute;
+  top: 12px;
+  right: 0;
+  border: none;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: #6b756f;
+}
+
+.county-panel-close:hover {
+  color: #17221c;
+}
+
+.county-panel h2 {
+  margin: 0 0 2px;
+  font-size: 18px;
+}
+
+.county-panel .panel-year {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #6b756f;
+}
+
+.county-panel .panel-current {
+  margin: 0 0 12px;
+  font-size: 28px;
+  font-weight: 700;
+  color: #176b4d;
+}
+
+.county-panel .panel-current span {
+  font-size: 14px;
+  font-weight: 400;
+  color: #6b756f;
+}
+
+.county-panel .panel-trend-label {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: #6b756f;
+}
+
+.county-panel svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.map-legend {
+  font-size: 13px;
+  line-height: 20px;
+  color: #17221c;
+}
+
+.map-legend strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.map-legend .legend-row {
+  display: flex;
+  align-items: center;
+}
+
+.map-legend i {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+/* ── Narrow screens: stack instead of two columns ──── */
+@media (max-width: 800px) {
+  header {
+    padding: 16px;
+  }
+
+  h1 {
+    font-size: 20px;
+  }
+
+  main {
+    padding: 12px;
+  }
+
+  /* Stack the map above the legend and card, all still inside the one box. */
+  .board {
+    flex-direction: column;
+  }
+
+  .map-box {
+    flex: none;
+    width: 100%;
+  }
+
+  #map {
+    height: 60vh;
+  }
+
+  .side {
+    flex: none;
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid #d8ded9;
+  }
+
+  /* Lay the legend out in a wrapping row to save vertical space. */
+  .map-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
+  }
+
+  .map-legend strong {
+    flex-basis: 100%;
+    margin-bottom: 6px;
+  }
+
+  /* Bigger, easier tap target for closing. */
+  .county-panel-close {
+    top: 12px;
+    right: 4px;
+    font-size: 26px;
+    padding: 4px 8px;
+  }
 }
