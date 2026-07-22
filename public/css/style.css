@@ -18,10 +18,6 @@ h1 {
     margin: 0 0 8px;
 }
 
-.title-icon {
-    color: #176b4d;
-}
-
 .lead {
     max-width: 640px;
     margin: 0 auto 12px;
@@ -73,6 +69,9 @@ footer {
 }
 
 #play-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     padding: 6px 16px;
     background-color: #176b4d;
     color: white;
@@ -80,6 +79,12 @@ footer {
     border-radius: 4px;
     font-size: 14px;
     cursor: pointer;
+}
+
+.btn-icon {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
 }
 
 #play-button:hover {

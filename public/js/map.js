@@ -38,6 +38,12 @@ let countyLayer;
 // Outline used to mark the county whose card is open.
 const HIGHLIGHT_STYLE = { color: "#0b3d2c", weight: 3 };
 
+// Google Material Icons (play_arrow / pause) as inline SVG.
+const PLAY_ICON =
+  '<svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+const PAUSE_ICON =
+  '<svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+
 let playTimer = null;
 
 const yearSelect = document.getElementById("year-select");
@@ -305,7 +311,7 @@ function stopPlayback() {
     clearInterval(playTimer);
     playTimer = null;
   }
-  playButton.innerHTML = '<span aria-hidden="true">▶</span> Play';
+  playButton.innerHTML = `${PLAY_ICON} Play`;
   playButton.setAttribute("aria-pressed", "false");
 }
 
@@ -317,7 +323,7 @@ function startPlayback() {
   yearSelect.value = years[0];
   applyYear();
 
-  playButton.innerHTML = '<span aria-hidden="true">⏸</span> Pause';
+  playButton.innerHTML = `${PAUSE_ICON} Pause`;
   playButton.setAttribute("aria-pressed", "true");
 
   playTimer = setInterval(() => {
