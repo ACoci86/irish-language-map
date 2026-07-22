@@ -86,6 +86,17 @@ footer {
     background-color: #12583f;
 }
 
+/* Kill the orange focus ring that lingers on the button after a tap, but keep
+   a clear outline for keyboard users. */
+#play-button:focus {
+    outline: none;
+}
+
+#play-button:focus-visible {
+    outline: 2px solid #0b3d2c;
+    outline-offset: 2px;
+}
+
 main {
   max-width: 780px;
   margin: 0 auto;
