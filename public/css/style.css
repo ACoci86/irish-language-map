@@ -43,12 +43,28 @@ footer {
     color: #176b4d;
 }
 
-.historical-note {
-    max-width: 640px;
-    margin: 0 auto 16px;
+.data-notes {
+    max-width: 620px;
+    margin: 0 auto 14px;
     font-size: 12px;
-    line-height: 1.5;
+    line-height: 1.55;
     color: #8a8f8b;
+    text-align: left;
+}
+
+.data-notes summary {
+    text-align: center;
+    font-size: 13px;
+    color: #176b4d;
+    cursor: pointer;
+}
+
+.data-notes summary:hover {
+    text-decoration: underline;
+}
+
+.data-notes p {
+    margin: 10px 0 0;
 }
 
 .github-link {
@@ -202,6 +218,13 @@ main {
   font-size: 14px;
   font-weight: 400;
   color: #6b756f;
+}
+
+.county-panel .panel-note {
+  margin: -6px 0 12px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #8a8f8b;
 }
 
 .county-panel .panel-trend-label {

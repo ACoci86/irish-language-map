@@ -30,8 +30,8 @@ async function build() {
   //    deliberately excluded; the app only reads the 4 MB web version.
   fs.copyFileSync("data/ability.json", "dist/data/ability.json");
   fs.copyFileSync(
-    "public/data/ireland-counties-web.geojson",
-    "dist/data/ireland-counties-web.geojson",
+    "public/data/ireland-32-counties-web.geojson",
+    "dist/data/ireland-32-counties-web.geojson",
   );
 
   // 4. Stop GitHub Pages from running the output through Jekyll.

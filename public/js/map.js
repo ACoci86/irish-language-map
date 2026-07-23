@@ -35,6 +35,26 @@ let selectedCounty = null;
 let selectedLayer = null;
 let countyLayer;
 
+const NI_COUNTIES = new Set([
+  "ANTRIM",
+  "ARMAGH",
+  "DOWN",
+  "FERMANAGH",
+  "LONDONDERRY",
+  "TYRONE",
+]);
+
+// Northern Ireland runs its own census, so a couple of its years sit a year or
+// two off the Republic's. Those figures are shown under the nearest map year,
+// and the panel says which NI census they actually come from.
+const NI_CENSUS_YEAR = { 2002: "2001", 2022: "2021" };
+
+const DISPLAY_NAMES = { LONDONDERRY: "DERRY / LONDONDERRY" };
+
+function displayName(county) {
+  return DISPLAY_NAMES[county] || county;
+}
+
 // Outline used to mark the county whose card is open.
 const HIGHLIGHT_STYLE = { color: "#0b3d2c", weight: 3 };
 
@@ -76,23 +96,30 @@ async function loadAllData() {
 // ─────────────────────────────────────────────
 
 // Fixed domain across all census years so a shade means the same % in every
-// year. Max historic value is ~69%, so 70 keeps the darkest greens in reach
-// without ever clipping.
+// year. The historic maximum is 69.1%, so 70 covers everything without
+// clipping.
 const SCALE_MAX = 70;
 
-// Continuous single-hue (green) sequential ramp, light -> dark. Interpolating
-// in HSL gives every county a distinct shade even when values bunch together
-// (as they do from 1961 onwards), instead of collapsing into a few buckets.
+// The data is heavily skewed towards the low end: the median is about 27%,
+// only 3% of values exceed 50% and nothing reaches 70%. On a straight linear
+// ramp the darkest third would go almost unused and most counties would look
+// alike. Raising the position to a power below 1 stretches the crowded low
+// and middle range across much more of the ramp, while the domain still spans
+// the true maximum, so years remain directly comparable.
+const SCALE_EXPONENT = 0.6;
+
+// Continuous single-hue (green) sequential ramp, light -> dark.
 function getCountyColour(value) {
   if (value === undefined) {
     return "#cccccc";
   }
 
-  const t = Math.max(0, Math.min(1, value / SCALE_MAX));
+  const ratio = Math.max(0, Math.min(1, value / SCALE_MAX));
+  const t = Math.pow(ratio, SCALE_EXPONENT);
 
-  const hue = 150;
-  const saturation = 45 + t * 20; // 45% -> 65%
-  const lightness = 92 - t * 70; // 92% (near zero) -> 22% (darkest)
+  const hue = 152;
+  const saturation = 38 + t * 42; // 38% -> 80%
+  const lightness = 96 - t * 80; // 96% (near zero) -> 16% (darkest)
 
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
@@ -105,7 +132,7 @@ function styleCounty(feature) {
     color: "#ffffff",
     weight: 1,
     fillColor: getCountyColour(value),
-    fillOpacity: 0.8,
+    fillOpacity: 1,
   };
 }
 
@@ -117,7 +144,7 @@ function addCountyInteraction(feature, layer) {
       const value = currentYearData()[countyName];
       const valueText = value === undefined ? "No data" : `${value}%`;
 
-      return `<strong>${countyName}</strong><br>${valueText}`;
+      return `<strong>${displayName(countyName)}</strong><br>${valueText}`;
     },
     {
       sticky: true,
@@ -174,7 +201,29 @@ function buildSparkline(countyName) {
     .map((year, i) => ({ year, i, value: allData[year][countyName] }))
     .filter((p) => p.value !== undefined);
 
-  const line = points.map((p) => `${x(p.i)},${y(p.value)}`).join(" ");
+  // Break the line wherever a county has no figure for one or more censuses,
+  // so the long Northern Ireland gap (1911 to 1991) isn't drawn as a
+  // continuous trend.
+  const segments = [];
+  points.forEach((p) => {
+    const last = segments[segments.length - 1];
+    if (last && p.i === last[last.length - 1].i + 1) {
+      last.push(p);
+    } else {
+      segments.push([p]);
+    }
+  });
+
+  const lines = segments
+    .filter((segment) => segment.length > 1)
+    .map(
+      (segment) =>
+        `<polyline points="${segment
+          .map((p) => `${x(p.i)},${y(p.value)}`)
+          .join(" ")}" fill="none" stroke="#176b4d" stroke-width="2" ` +
+        `stroke-linejoin="round" stroke-linecap="round" />`,
+    )
+    .join("");
 
   const dots = points
     .map((p) => {
@@ -194,11 +243,10 @@ function buildSparkline(countyName) {
 
   return (
     `<svg viewBox="0 0 ${w} ${h}" role="img" ` +
-    `aria-label="${countyName} Irish ability from ${firstYear} to ${lastYear}">` +
+    `aria-label="${displayName(countyName)} Irish ability from ${firstYear} to ${lastYear}">` +
     `<line x1="${padX}" y1="${baselineY}" x2="${w - padX}" y2="${baselineY}" ` +
     `stroke="#d8ded9" stroke-width="1" />` +
-    `<polyline points="${line}" fill="none" stroke="#176b4d" stroke-width="2" ` +
-    `stroke-linejoin="round" stroke-linecap="round" />` +
+    lines +
     dots +
     `<text x="${padX}" y="${h - 4}" font-size="10" fill="#6b756f">${firstYear}</text>` +
     `<text x="${w - padX}" y="${h - 4}" font-size="10" fill="#6b756f" ` +
@@ -214,10 +262,18 @@ function renderPanel(countyName) {
       ? `No data <span>in ${currentYear}</span>`
       : `${value}%<span> in ${currentYear}</span>`;
 
+  // Flag when a Northern Ireland figure comes from a differently-dated census.
+  const niYear = NI_COUNTIES.has(countyName) ? NI_CENSUS_YEAR[currentYear] : null;
+  const niNote =
+    niYear && value !== undefined
+      ? `<p class="panel-note">Northern Ireland figure is from the ${niYear} census.</p>`
+      : "";
+
   panelBody.innerHTML =
-    `<h2>${countyName}</h2>` +
+    `<h2>${displayName(countyName)}</h2>` +
     `<p class="panel-year">Percentage able to speak Irish</p>` +
     `<p class="panel-current">${currentText}</p>` +
+    niNote +
     `<p class="panel-trend-label">Trend, ${sortedYears()[0]} to ${
       sortedYears()[sortedYears().length - 1]
     }</p>` +
@@ -245,7 +301,7 @@ function hideCountyPanel() {
 // overlay on top of it.
 function buildLegend() {
   const legend = document.getElementById("legend");
-  const stops = [0, 10, 20, 30, 40, 50, 60, 70];
+  const stops = [0, 5, 10, 20, 30, 40, 50, 60, 70];
 
   legend.innerHTML =
     "<strong>% with Irish</strong>" +
@@ -268,7 +324,7 @@ function buildLegend() {
 
 // Expects allData to already be loaded and currentYear to be set.
 async function loadCountyBoundaries() {
-  const response = await fetch("data/ireland-counties-web.geojson");
+  const response = await fetch("data/ireland-32-counties-web.geojson");
 
   if (!response.ok) {
     throw new Error(`Could not load GeoJSON: ${response.status}`);
