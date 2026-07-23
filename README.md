@@ -41,7 +41,7 @@ A note on comparability: census questions and definitions changed over time. Old
 
 ### Northern Ireland
 
-The map covers all 32 counties. The Northern Ireland figures come from the Northern Ireland censuses and were compiled by **phelimbirch**, who kindly shared them.
+The map covers all 32 counties. The Northern Ireland figures come from the Northern Ireland censuses and were compiled by [Phelim Birch](https://bsky.app/profile/phelimbirch.bsky.social), who kindly shared them.
 
 Because the North runs its own census, this creates three wrinkles, all handled explicitly:
 
