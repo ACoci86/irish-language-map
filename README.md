@@ -15,6 +15,8 @@ An interactive choropleth map showing the percentage of people who reported bein
 
 https://acoci86.github.io/irish-language-map/
 
+![The map showing reported ability to speak Irish by county in 2022, with the Dublin county card open](docs/screenshot.png)
+
 ## Overview
 
 All 32 counties are shaded on a single green scale, light for few speakers, dark for many. The scale is fixed across every year, so a shade always means the same percentage. Press Play to animate through the census years, or pick a year from the dropdown. Click any county for its exact percentage and a sparkline of its trend.
