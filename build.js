@@ -34,7 +34,10 @@ async function build() {
     "dist/data/ireland-32-counties-web.geojson",
   );
 
-  // 4. Stop GitHub Pages from running the output through Jekyll.
+  // 4. The social preview image referenced by the Open Graph tags.
+  fs.copyFileSync("docs/screenshot.png", "dist/screenshot.png");
+
+  // 5. Stop GitHub Pages from running the output through Jekyll.
   fs.writeFileSync("dist/.nojekyll", "");
 
   console.log("Built static site to dist/");

@@ -11,6 +11,23 @@
     <title>
         <%= title %>
     </title>
+
+    <meta name="description"
+        content="Interactive map of the percentage of people able to speak Irish in each of Ireland's 32 counties, from the 1851 census to 2022.">
+
+    <!-- Open Graph / Twitter, so shared links render a preview card. -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Reported ability to speak Irish">
+    <meta property="og:title" content="Reported ability to speak Irish, 1851 to 2022">
+    <meta property="og:description"
+        content="Interactive map of the percentage of people able to speak Irish in each of Ireland's 32 counties, from the 1851 census to 2022.">
+    <meta property="og:url" content="https://acoci86.github.io/irish-language-map/">
+    <meta property="og:image" content="https://acoci86.github.io/irish-language-map/screenshot.png">
+    <meta property="og:image:width" content="1920">
+    <meta property="og:image:height" content="995">
+    <meta property="og:image:alt"
+        content="Map of Ireland shaded by the percentage of people able to speak Irish in each county.">
+    <meta name="twitter:card" content="summary_large_image">
 </head>
 
 <body>
@@ -68,7 +85,8 @@
             Data:
             <a href="https://data.cso.ie/" target="_blank" rel="noopener">CSO</a>
             and the Northern Ireland censuses, the latter compiled by
-            phelimbirch. Boundaries: OSi and OSNI.
+            <a href="https://bsky.app/profile/phelimbirch.bsky.social" target="_blank" rel="noopener">Phelim Birch</a>.
+            Boundaries: OSi and OSNI.
         </p>
 
         <details class="data-notes">
@@ -89,6 +107,14 @@
                 censuses appear under 2002 and 2022; the county card says so
                 when that applies. Antrim and Down for 1851, 1861 and 1901 are
                 estimated, because Belfast straddles both counties.
+            </p>
+
+            <p>
+                Some Northern Ireland county figures are themselves estimates.
+                The 1991, 2001 and 2011 values were derived from ward-level
+                returns, and NISRA's 2021 county figures are estimated from
+                census areas, as the North does not publish this on a county
+                basis directly.
             </p>
         </details>
 
