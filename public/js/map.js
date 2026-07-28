@@ -13,7 +13,8 @@ const map = L.map("map", {
   boxZoom: false,
   touchZoom: false,
   keyboard: false,
-  zoomSnap: 0, // allow fractional zoom so the island fills the box exactly
+  zoomSnap: 0, // fractional zoom so the island fills the box exactly
+  attributionControl: false, // credited in the footer instead of on the map
 }).setView([53.4, -8.0], 7);
 
 /*L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -72,6 +73,22 @@ const panel = document.getElementById("county-panel");
 const panelBody = document.getElementById("county-panel-body");
 const panelClose = document.getElementById("county-panel-close");
 
+const insightEl = document.getElementById("insight-text");
+const sumHiVal = document.getElementById("sum-hi-val");
+const sumHiName = document.getElementById("sum-hi-name");
+const sumHiDot = document.getElementById("sum-hi-dot");
+const sumLoVal = document.getElementById("sum-lo-val");
+const sumLoName = document.getElementById("sum-lo-name");
+const sumLoDot = document.getElementById("sum-lo-dot");
+const sumAvgVal = document.getElementById("sum-avg-val");
+
+// "GALWAY" -> "Galway", "DERRY / LONDONDERRY" -> "Derry / Londonderry".
+function prettyName(county) {
+  return displayName(county)
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 // The value map for the year currently on the map.
 function currentYearData() {
   return allData[currentYear] || {};
@@ -95,24 +112,17 @@ async function loadAllData() {
 // 4. PRESENTATION
 // ─────────────────────────────────────────────
 
-// Fixed domain across all census years so a shade means the same % in every
-// year. The historic maximum is 69.1%, so 70 covers everything without
-// clipping.
 const SCALE_MAX = 70;
 
-// The data is heavily skewed towards the low end: the median is about 27%,
-// only 3% of values exceed 50% and nothing reaches 70%. On a straight linear
-// ramp the darkest third would go almost unused and most counties would look
-// alike. Raising the position to a power below 1 stretches the crowded low
-// and middle range across much more of the ramp, while the domain still spans
-// the true maximum, so years remain directly comparable.
+// The data is skewed low (median ~27%, nothing above 70%), so raising the
+// position to a power below 1 spreads the crowded low and middle range across
+// more of the ramp while the domain still spans the true maximum.
 const SCALE_EXPONENT = 0.6;
+const NO_DATA_COLOUR = "#cccccc";
 
 // Continuous single-hue (green) sequential ramp, light -> dark.
 function getCountyColour(value) {
-  if (value === undefined) {
-    return "#cccccc";
-  }
+  if (value == null) return NO_DATA_COLOUR;
 
   const ratio = Math.max(0, Math.min(1, value / SCALE_MAX));
   const t = Math.pow(ratio, SCALE_EXPONENT);
@@ -285,8 +295,9 @@ function showCountyPanel(countyName) {
   renderPanel(countyName);
   panel.hidden = false;
 
-  // On phones the panel sits below the map, so bring it into view on tap.
-  if (window.matchMedia("(max-width: 600px)").matches) {
+  // When stacked (narrow screens) the panel sits below the map, so bring it
+  // into view on tap.
+  if (window.matchMedia("(max-width: 900px)").matches) {
     panel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 }
@@ -297,25 +308,65 @@ function hideCountyPanel() {
   clearHighlight();
 }
 
-// Renders the legend into its own element beside the map, rather than as an
-// overlay on top of it.
+// Renders the legend as a horizontal gradient bar matching the map's ramp.
 function buildLegend() {
   const legend = document.getElementById("legend");
-  const stops = [0, 5, 10, 20, 30, 40, 50, 60, 70];
+
+  const stops = [];
+  for (let p = 0; p <= 100; p += 5) {
+    stops.push(`${getCountyColour((p / 100) * SCALE_MAX)} ${p}%`);
+  }
+  const gradient = `linear-gradient(to right, ${stops.join(", ")})`;
+
+  const ticks = [0, 20, 40, 60, 70]
+    .map(
+      (v) =>
+        `<span class="tick" style="left:${(v / SCALE_MAX) * 100}%">${v}</span>`,
+    )
+    .join("");
 
   legend.innerHTML =
-    "<strong>% with Irish</strong>" +
-    stops
-      .map(
-        (value) =>
-          `<span class="legend-row">` +
-          `<i style="background:${getCountyColour(value)}"></i>` +
-          `${value}%` +
-          `</span>`,
-      )
-      .join("") +
-    `<span class="legend-row">` +
-    `<i style="background:#cccccc"></i>No data</span>`;
+    `<span class="legend-head">% able to speak Irish</span>` +
+    `<span class="legend-scale">` +
+    `<span class="legend-bar" style="background:${gradient}"></span>` +
+    `<span class="legend-ticks">${ticks}</span>` +
+    `</span>` +
+    `<span class="legend-nodata"><i></i> No data</span>`;
+}
+
+// Updates the year-level Insights, Summary and Data notes for the current year.
+function updateContext() {
+  const year = currentYear;
+
+  const entries = Object.entries(currentYearData()).filter(
+    ([, v]) => v != null,
+  );
+
+  if (!entries.length) {
+    insightEl.textContent = `No county data is available for ${year}.`;
+    return;
+  }
+
+  entries.sort((a, b) => b[1] - a[1]);
+  const [hiName, hiVal] = entries[0];
+  const [loName, loVal] = entries[entries.length - 1];
+  const avg = entries.reduce((sum, [, v]) => sum + v, 0) / entries.length;
+
+  insightEl.textContent =
+    `In ${year}, reported ability was highest in ${prettyName(hiName)} ` +
+    `(${hiVal}%) and lowest in ${prettyName(loName)} (${loVal}%). ` +
+    `Across the ${entries.length} counties with data, the average was ` +
+    `${avg.toFixed(1)}%.`;
+
+  sumHiVal.textContent = `${hiVal}%`;
+  sumHiName.textContent = prettyName(hiName);
+  sumHiDot.style.background = getCountyColour(hiVal);
+
+  sumLoVal.textContent = `${loVal}%`;
+  sumLoName.textContent = prettyName(loName);
+  sumLoDot.style.background = getCountyColour(loVal);
+
+  sumAvgVal.textContent = `${avg.toFixed(1)}%`;
 }
 
 // ─────────────────────────────────────────────
@@ -337,7 +388,7 @@ async function loadCountyBoundaries() {
     onEachFeature: addCountyInteraction,
   }).addTo(map);
 
-  map.fitBounds(countyLayer.getBounds(), { padding: [10, 10] });
+  map.fitBounds(countyLayer.getBounds(), { padding: [12, 12] });
 }
 
 // ─────────────────────────────────────────────
@@ -360,6 +411,8 @@ function applyYear() {
   if (selectedCounty) {
     renderPanel(selectedCounty);
   }
+
+  updateContext();
 }
 
 function stopPlayback() {
@@ -367,7 +420,7 @@ function stopPlayback() {
     clearInterval(playTimer);
     playTimer = null;
   }
-  playButton.innerHTML = `${PLAY_ICON} Play`;
+  playButton.innerHTML = `${PLAY_ICON} Play animation`;
   playButton.setAttribute("aria-pressed", "false");
 }
 
@@ -379,7 +432,7 @@ function startPlayback() {
   yearSelect.value = years[0];
   applyYear();
 
-  playButton.innerHTML = `${PAUSE_ICON} Pause`;
+  playButton.innerHTML = `${PAUSE_ICON} Pause animation`;
   playButton.setAttribute("aria-pressed", "true");
 
   playTimer = setInterval(() => {
@@ -421,6 +474,7 @@ async function initialiseMap() {
   await loadAllData();
   buildLegend();
   await loadCountyBoundaries();
+  updateContext();
 }
 
 initialiseMap().catch((error) => {

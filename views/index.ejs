@@ -2,142 +2,109 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="css/style.css">
-
-    <title>
-        <%= title %>
-    </title>
-
-    <meta name="description"
-        content="Interactive map of the percentage of people able to speak Irish in each of Ireland's 32 counties, from the 1851 census to 2022.">
-
-    <!-- Open Graph / Twitter, so shared links render a preview card. -->
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="Reported ability to speak Irish">
-    <meta property="og:title" content="Reported ability to speak Irish, 1851 to 2022">
-    <meta property="og:description"
-        content="Interactive map of the percentage of people able to speak Irish in each of Ireland's 32 counties, from the 1851 census to 2022.">
-    <meta property="og:url" content="https://acoci86.github.io/irish-language-map/">
-    <meta property="og:image" content="https://acoci86.github.io/irish-language-map/screenshot.png">
-    <meta property="og:image:width" content="1920">
-    <meta property="og:image:height" content="995">
-    <meta property="og:image:alt"
-        content="Map of Ireland shaded by the percentage of people able to speak Irish in each county.">
-    <meta name="twitter:card" content="summary_large_image">
+<%- include("partials/head", { title: title, mapPage: true }) %>
 </head>
 
 <body>
-    <header>
-        <h1>
-            Reported ability to speak Irish
-        </h1>
+<%- include("partials/nav", { active: "explore" }) %>
 
-        <p class="lead">
-            Percentage of people aged 3 and over who reported that they could
-            speak Irish. This measures self-reported ability, not fluency or
-            regular use.
-        </p>
+    <div class="page" id="top">
+        <header class="masthead">
+            <div class="masthead-text">
+                <h1>Reported ability to speak Irish</h1>
+                <p class="lead">
+                    Percentage of people aged 3 and over who reported that they
+                    could speak Irish. This measures self-reported ability, not
+                    fluency or regular use.
+                </p>
+            </div>
+        </header>
 
-        <div class="controls">
-            <button id="play-button" type="button" aria-pressed="false">
-                <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-                Play
-            </button>
+        <div class="controls-row">
+            <div class="toolbar-group">
+                <button id="play-button" type="button" aria-pressed="false">
+                    <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    Play animation
+                </button>
 
-            <label for="year-select">Census year</label>
-            <select id="year-select">
-              <% abilityYears.forEach((year) => { %>
-                <option
-                  value="<%= year %>"
-                  <%= year === defaultYear ? "selected" : "" %>
-                >
-                  <%= year %>
-                </option>
-              <% }); %>
-            </select>
+                <label for="year-select">Census year</label>
+                <select id="year-select">
+                  <% abilityYears.forEach((year) => { %>
+                    <option
+                      value="<%= year %>"
+                      <%= year === defaultYear ? "selected" : "" %>
+                    >
+                      <%= year %>
+                    </option>
+                  <% }); %>
+                </select>
+            </div>
         </div>
 
-    </header>
-
-    <main>
-        <div class="board">
-            <div class="map-box">
+        <div class="explorer">
+            <div class="map-panel">
                 <div id="map"></div>
+                <div class="map-caption">
+                    <div id="legend" class="map-legend"></div>
+                    <div class="map-hint">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+                        <span>Hover or tap a county to see details</span>
+                    </div>
+                </div>
             </div>
 
-            <div class="side">
-                <div id="legend" class="map-legend"></div>
-
-                <aside id="county-panel" class="county-panel" hidden>
+            <aside class="sidebar">
+                <section id="county-panel" class="card county-panel" hidden>
                     <button id="county-panel-close" class="county-panel-close" type="button" aria-label="Close">&times;</button>
                     <div id="county-panel-body"></div>
-                </aside>
-            </div>
-        </div>
-    </main>
+                </section>
 
-    <footer>
-        <p class="data-source">
-            Data:
-            <a href="https://data.cso.ie/" target="_blank" rel="noopener">CSO</a>
-            and the Northern Ireland censuses, the latter compiled by
-            <a href="https://bsky.app/profile/phelimbirch.bsky.social" target="_blank" rel="noopener">Phelim Birch</a>.
-            Boundaries: OSi and OSNI.
+                <section class="card">
+                    <h2>
+                        <svg class="card-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
+                        Insights
+                    </h2>
+                    <p id="insight-text" class="insight-text"></p>
+                </section>
+
+                <section class="card">
+                    <h2>
+                        <svg class="card-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4v11H4zm6-5h4v16h-4zm6 8h4v8h-4z"/></svg>
+                        Summary
+                    </h2>
+                    <ul class="summary-list">
+                        <li>
+                            <span class="summary-label">Highest</span>
+                            <span class="summary-figure"><i class="dot" id="sum-hi-dot"></i><span id="sum-hi-val">&ndash;</span></span>
+                            <span class="summary-place" id="sum-hi-name"></span>
+                        </li>
+                        <li>
+                            <span class="summary-label">Lowest</span>
+                            <span class="summary-figure"><i class="dot" id="sum-lo-dot"></i><span id="sum-lo-val">&ndash;</span></span>
+                            <span class="summary-place" id="sum-lo-name"></span>
+                        </li>
+                        <li>
+                            <span class="summary-label">County average</span>
+                            <span class="summary-figure"><span id="sum-avg-val">&ndash;</span></span>
+                        </li>
+                    </ul>
+                </section>
+            </aside>
+        </div>
+
+        <p class="page-hint">
+            New here? Read <a href="about.html">about this project</a> or the
+            <a href="methodology.html">methodology and data notes</a>.
         </p>
 
-        <details class="data-notes">
-            <summary>About this data</summary>
-
-            <p>
-                Census questions and definitions changed over time, so
-                comparisons between distant years should be interpreted
-                cautiously. The CSO notes that results such as 1926 and 2022
-                are not directly comparable, and a new question series began
-                in 1996.
-            </p>
-
-            <p>
-                Northern Ireland recorded Irish only in the all-island
-                censuses of 1851 to 1911 and again from 1991, so the six
-                counties show as "no data" in between. Its 2001 and 2021
-                censuses appear under 2002 and 2022; the county card says so
-                when that applies. Antrim and Down for 1851, 1861 and 1901 are
-                estimated, because Belfast straddles both counties.
-            </p>
-
-            <p>
-                Some Northern Ireland county figures are themselves estimates.
-                The 1991, 2001 and 2011 values were derived from ward-level
-                returns, and NISRA's 2021 county figures are estimated from
-                census areas, as the North does not publish this on a county
-                basis directly.
-            </p>
-        </details>
-
-        <a
-            class="github-link"
-            href="https://github.com/ACoci86/irish-language-map"
-            target="_blank"
-            rel="noopener"
-        >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
-            </svg>
-            View the code on GitHub
-        </a>
-    </footer>
-
-</body>
+<%- include("partials/footer") %>
+    </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="">
-
-    </script>
-
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="js/map.js"></script>
+<script src="js/nav.js"></script>
+
+</body>
 
 </html>

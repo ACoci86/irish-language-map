@@ -9,7 +9,7 @@ app.use(express.static("public"));
 // way it does on the static (GitHub Pages) build.
 app.use("/data", express.static("data"));
 
-app.get("/", (req, res) => {
+app.get(["/", "/index.html"], (req, res) => {
   const abilityYears = Object.keys(abilityData).sort(
     (a, b) => Number(a) - Number(b),
   );
@@ -19,6 +19,14 @@ app.get("/", (req, res) => {
     abilityYears,
     defaultYear: "1851",
   });
+});
+
+app.get("/about.html", (req, res) => {
+  res.render("about", { title: "About - Irish language map" });
+});
+
+app.get("/methodology.html", (req, res) => {
+  res.render("methodology", { title: "Methodology - Irish language map" });
 });
 
 app.get("/api/ability", (req, res) => {

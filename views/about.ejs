@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<%- include("partials/head", { title: "About - Irish language map", mapPage: false }) %>
+</head>
+
+<body>
+<%- include("partials/nav", { active: "about" }) %>
+
+    <div class="page">
+        <header class="masthead">
+            <div class="masthead-text">
+                <h1>About</h1>
+                <p class="lead">
+                    An interactive map of how many people reported being able to
+                    speak Irish in each county, across every census from 1851 to
+                    2022.
+                </p>
+            </div>
+        </header>
+
+        <div class="prose">
+            <p>
+                Each county is shaded by the percentage of people aged 3 and over
+                who told the census they could speak Irish. The colour scale is
+                fixed across every year, so a shade always means the same
+                percentage, which lets you watch the long decline and the more
+                recent changes. Press <strong>Play animation</strong> on the map
+                to step through the census years, or pick a year yourself, and
+                click any county to see its exact figure and its trend over time.
+            </p>
+
+            <p>
+                The map covers all 32 counties: the 26 counties of the Republic
+                and the six counties of Northern Ireland. Because the two parts
+                of the island ran their censuses differently over time, some
+                years are only available for part of the island. The
+                <a href="methodology.html">methodology page</a> explains exactly
+                what is shown, what is estimated, and how comparable the figures
+                are between distant years.
+            </p>
+
+            <h2>Credits</h2>
+            <ul>
+                <li>
+                    Republic of Ireland figures from the Central Statistics
+                    Office (<a href="https://data.cso.ie/" target="_blank" rel="noopener">data.cso.ie</a>).
+                </li>
+                <li>
+                    Northern Ireland figures compiled by
+                    <a href="https://bsky.app/profile/phelimbirch.bsky.social" target="_blank" rel="noopener">Phelim Birch</a>,
+                    who generously shared the dataset from his degree project.
+                </li>
+                <li>
+                    County boundaries from Ordnance Survey Ireland (OSi) and
+                    Ordnance Survey of Northern Ireland (OSNI).
+                </li>
+                <li>
+                    Map rendering by <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>.
+                </li>
+            </ul>
+
+            <p>
+                The project is open source. You can read the code, report an
+                issue, or download the data on
+                <a href="https://github.com/ACoci86/irish-language-map" target="_blank" rel="noopener">GitHub</a>.
+            </p>
+        </div>
+
+<%- include("partials/footer") %>
+    </div>
+
+<script src="js/nav.js"></script>
+
+</body>
+
+</html>

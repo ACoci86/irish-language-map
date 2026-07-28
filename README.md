@@ -15,7 +15,7 @@ An interactive choropleth map showing the percentage of people who reported bein
 
 https://acoci86.github.io/irish-language-map/
 
-![The map showing reported ability to speak Irish by county in 2022, with the Dublin county card open](docs/screenshot.png)
+![The Irish language map: reported ability to speak Irish by county, with a county detail card, insights and summary](docs/screenshot.png)
 
 ## Overview
 
@@ -30,6 +30,17 @@ All 32 counties are shaded on a single green scale, light for few speakers, dark
 - Selected-county highlight: the clicked county is outlined on the map.
 - Responsive: two-column layout on desktop, stacked with a horizontal legend on mobile.
 - Static-first: pre-rendered to plain HTML and hosted on GitHub Pages.
+
+## Pages
+
+The site is split into a few pages, sharing a common nav, header and footer:
+
+- **Explore Data** (`index.html`) - the interactive map, insights and summary.
+- **About** (`about.html`) - what the project is and full credits.
+- **Methodology** (`methodology.html`) - what is measured, comparability caveats, and the Northern Ireland notes.
+- **Downloads** - the dataset (`data/ability.json`), linked from the nav.
+
+Views live in `views/` (with shared partials in `views/partials/`); `build.js` renders each page to static HTML in `dist/`.
 
 ## Data and sources
 

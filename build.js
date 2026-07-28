@@ -14,13 +14,23 @@ async function build() {
   fs.rmSync("dist", { recursive: true, force: true });
   fs.mkdirSync("dist/data", { recursive: true });
 
-  // 1. Render the EJS once with the data that is fixed at build time.
-  const html = await ejs.renderFile("views/index.ejs", {
+  // 1. Render each page to static HTML.
+  const index = await ejs.renderFile("views/index.ejs", {
     title: "Reported ability to speak Irish",
     abilityYears,
     defaultYear: "1851",
   });
-  fs.writeFileSync("dist/index.html", html);
+  fs.writeFileSync("dist/index.html", index);
+
+  const about = await ejs.renderFile("views/about.ejs", {
+    title: "About - Irish language map",
+  });
+  fs.writeFileSync("dist/about.html", about);
+
+  const methodology = await ejs.renderFile("views/methodology.ejs", {
+    title: "Methodology - Irish language map",
+  });
+  fs.writeFileSync("dist/methodology.html", methodology);
 
   // 2. Copy the static assets the page loads at runtime.
   fs.cpSync("public/css", "dist/css", { recursive: true });
@@ -36,6 +46,9 @@ async function build() {
 
   // 4. The social preview image referenced by the Open Graph tags.
   fs.copyFileSync("docs/screenshot.png", "dist/screenshot.png");
+
+  // Brand logo used in the nav.
+  fs.copyFileSync("public/logo.png", "dist/logo.png");
 
   // 5. Stop GitHub Pages from running the output through Jekyll.
   fs.writeFileSync("dist/.nojekyll", "");

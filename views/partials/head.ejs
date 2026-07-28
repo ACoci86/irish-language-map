@@ -1,0 +1,24 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<% if (typeof mapPage !== "undefined" && mapPage) { %>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<% } %>
+<link rel="stylesheet" href="css/style.css">
+
+<title><%= title %></title>
+
+<meta name="description"
+    content="Interactive map of the percentage of people able to speak Irish in each of Ireland's 32 counties, from the 1851 census to 2022.">
+
+<!-- Open Graph / Twitter, so shared links render a preview card. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Irish language map">
+<meta property="og:title" content="<%= title %>">
+<meta property="og:description"
+    content="Interactive map of the percentage of people able to speak Irish in each of Ireland's 32 counties, from the 1851 census to 2022.">
+<meta property="og:url" content="https://acoci86.github.io/irish-language-map/">
+<meta property="og:image" content="https://acoci86.github.io/irish-language-map/screenshot.png">
+<meta property="og:image:alt"
+    content="Map of Ireland shaded by the percentage of people able to speak Irish in each county.">
+<meta name="twitter:card" content="summary_large_image">
