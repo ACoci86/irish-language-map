@@ -16,7 +16,7 @@ async function build() {
 
   // 1. Render each page to static HTML.
   const index = await ejs.renderFile("views/index.ejs", {
-    title: "Reported ability to speak Irish",
+    title: "Irish language map",
     abilityYears,
     defaultYear: "1851",
   });
@@ -47,8 +47,9 @@ async function build() {
   // 4. The social preview image referenced by the Open Graph tags.
   fs.copyFileSync("docs/screenshot.png", "dist/screenshot.png");
 
-  // Brand logo used in the nav.
+  // Brand logo used in the nav, and the tab favicon.
   fs.copyFileSync("public/logo.png", "dist/logo.png");
+  fs.copyFileSync("public/favicon.png", "dist/favicon.png");
 
   // 5. Custom domain for GitHub Pages.
   fs.writeFileSync("dist/CNAME", "irishlanguagemap.org\n");

@@ -15,7 +15,7 @@ app.get(["/", "/index.html"], (req, res) => {
   );
 
   res.render("index", {
-    title: "Reported ability to speak Irish",
+    title: "Irish language map",
     abilityYears,
     defaultYear: "1851",
   });
