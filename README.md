@@ -17,7 +17,7 @@ An interactive choropleth map showing the percentage of people who reported bein
 
 ## Live demo
 
-https://acoci86.github.io/irish-language-map/
+https://irishlanguagemap.org/
 
 ![The Irish language map: reported ability to speak Irish by county, with a county detail card, insights and summary](docs/screenshot.png)
 

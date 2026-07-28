@@ -50,7 +50,10 @@ async function build() {
   // Brand logo used in the nav.
   fs.copyFileSync("public/logo.png", "dist/logo.png");
 
-  // 5. Stop GitHub Pages from running the output through Jekyll.
+  // 5. Custom domain for GitHub Pages.
+  fs.writeFileSync("dist/CNAME", "irishlanguagemap.org\n");
+
+  // 6. Stop GitHub Pages from running the output through Jekyll.
   fs.writeFileSync("dist/.nojekyll", "");
 
   console.log("Built static site to dist/");
