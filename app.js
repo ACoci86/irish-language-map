@@ -16,17 +16,31 @@ app.get(["/", "/index.html"], (req, res) => {
 
   res.render("index", {
     title: "Irish language map",
+    ogTitle: "Reported ability to speak Irish, 1851 to 2022",
+    description:
+      "Interactive map of the percentage of people able to speak Irish in each of Ireland's 32 counties, from the 1851 census to 2022.",
+    canonical: "https://irishlanguagemap.org/",
     abilityYears,
     defaultYear: "1851",
   });
 });
 
 app.get("/about.html", (req, res) => {
-  res.render("about", { title: "About - Irish language map" });
+  res.render("about", {
+    title: "About - Irish language map",
+    description:
+      "About the Irish language map: what it shows, the census data sources, and credits.",
+    canonical: "https://irishlanguagemap.org/about.html",
+  });
 });
 
 app.get("/methodology.html", (req, res) => {
-  res.render("methodology", { title: "Methodology - Irish language map" });
+  res.render("methodology", {
+    title: "Methodology - Irish language map",
+    description:
+      "How the Irish language map is built: what the census figures measure, comparability caveats, and the Northern Ireland data notes.",
+    canonical: "https://irishlanguagemap.org/methodology.html",
+  });
 });
 
 app.get("/api/ability", (req, res) => {

@@ -1,6 +1,8 @@
+<% var ogTitle = (typeof ogTitle !== "undefined") ? ogTitle : title; %>
+<% var isMap = (typeof mapPage !== "undefined" && mapPage); %>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<% if (typeof mapPage !== "undefined" && mapPage) { %>
+<% if (isMap) { %>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 <% } %>
@@ -10,17 +12,42 @@
 
 <title><%= title %></title>
 
-<meta name="description"
-    content="Interactive map of the percentage of people able to speak Irish in each of Ireland's 32 counties, from the 1851 census to 2022.">
+<meta name="description" content="<%= description %>">
+<link rel="canonical" href="<%= canonical %>">
 
 <!-- Open Graph / Twitter, so shared links render a preview card. -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Irish language map">
-<meta property="og:title" content="Reported ability to speak Irish, 1851 to 2022">
-<meta property="og:description"
-    content="Interactive map of the percentage of people able to speak Irish in each of Ireland's 32 counties, from the 1851 census to 2022.">
-<meta property="og:url" content="https://irishlanguagemap.org/">
+<meta property="og:title" content="<%= ogTitle %>">
+<meta property="og:description" content="<%= description %>">
+<meta property="og:url" content="<%= canonical %>">
 <meta property="og:image" content="https://irishlanguagemap.org/screenshot.png">
 <meta property="og:image:alt"
     content="Map of Ireland shaded by the percentage of people able to speak Irish in each county.">
 <meta name="twitter:card" content="summary_large_image">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "Irish language map",
+  "url": "https://irishlanguagemap.org/"
+}
+</script>
+<% if (isMap) { %>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Dataset",
+  "name": "Reported ability to speak Irish by county, 1851 to 2022",
+  "description": "Percentage of people aged 3 and over who reported being able to speak Irish in each of Ireland's 32 counties, for every census from 1851 to 2022.",
+  "url": "https://irishlanguagemap.org/",
+  "creator": { "@type": "Person", "name": "Alessio Coci" },
+  "license": "https://opensource.org/licenses/MIT",
+  "keywords": ["Irish language", "Gaeilge", "census", "Ireland", "choropleth", "language decline"],
+  "spatialCoverage": "Ireland",
+  "temporalCoverage": "1851/2022",
+  "isAccessibleForFree": true
+}
+</script>
+<% } %>
