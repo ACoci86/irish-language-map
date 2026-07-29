@@ -658,6 +658,13 @@ h1 {
   color: var(--muted);
 }
 
+.footer-credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--muted);
+}
+
 .github-link {
   display: inline-flex;
   align-items: center;
