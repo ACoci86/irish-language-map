@@ -661,7 +661,18 @@ h1 {
 .footer-credit {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.footer-credit > span,
+.footer-credit .github-link {
+  line-height: 1;
+}
+
+.footer-dot {
   color: var(--muted);
 }
 
