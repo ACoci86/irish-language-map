@@ -6,6 +6,7 @@ const ejs = require("ejs");
 const fs = require("fs");
 
 const abilityData = require("./data/ability.json");
+const { openerShapes, countyShapes } = require("./opener-shapes");
 const abilityYears = Object.keys(abilityData).sort(
   (a, b) => Number(a) - Number(b),
 );
@@ -66,10 +67,10 @@ async function build() {
   // 3. Copy only the data the site actually uses. The 92 MB raw geojson is
   //    deliberately excluded; the app only reads the 4 MB web version.
   fs.copyFileSync("data/ability.json", "dist/data/ability.json");
-  fs.copyFileSync(
-    "public/data/ireland-32-counties-web.geojson",
-    "dist/data/ireland-32-counties-web.geojson",
-  );
+  // Thinned copies of the boundaries (see opener-shapes.js): the opener's,
+  // so it draws at once, and the main map's.
+  fs.writeFileSync("dist/data/opener.geojson", JSON.stringify(openerShapes()));
+  fs.writeFileSync("dist/data/counties.geojson", JSON.stringify(countyShapes()));
 
   // 4. The social preview image referenced by the Open Graph tags.
   fs.copyFileSync("docs/screenshot.png", "dist/screenshot.png");

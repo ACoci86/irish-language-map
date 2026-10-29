@@ -104,7 +104,7 @@ h3,
 .topnav-inner {
   display: flex;
   align-items: center;
-  height: 80px;
+  height: 124px;
   padding: 0 20px;
 }
 
@@ -116,10 +116,11 @@ h3,
   text-decoration: none;
 }
 
+/* The harpist logo is a detailed drawing, so it gets room to be seen. */
 .brand-logo {
   display: block;
-  width: 60px;
-  height: 60px;
+  width: 112px;
+  height: 112px;
 }
 
 .brand-text {
@@ -283,6 +284,8 @@ h3,
   position: relative;
   z-index: 1;
   margin-top: -100svh;
+  /* Only text here: let taps reach the scroll cue underneath. */
+  pointer-events: none;
 }
 
 .opener-steps .step {
@@ -324,12 +327,40 @@ h3,
 }
 
 /* The hand-drawn scroll cue, nudging gently downwards. */
+/* The scroll cue: the hand-drawn circle with a handwritten "scroll" under
+   it, gently bobbing. It's a button: tapping it starts the story. */
 .hero-scroll {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 16px auto 0;
+  padding: 0;
+  background: none;
+  border: none;
+  font-family: var(--hand);
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  animation: bob 1.8s ease-in-out infinite;
+}
+
+.hero-scroll img {
   display: block;
   width: 52px;
   height: 52px;
-  margin: 20px auto 0;
-  animation: bob 1.8s ease-in-out infinite;
+}
+
+.hero-scroll:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-scroll {
+    animation: none;
+  }
 }
 
 h1 {
@@ -591,51 +622,64 @@ h1 {
   border-top-color: var(--ink);
 }
 
-/* Labels on the map: white text with a dark halo, like a hand-set label,
-   so they read on both light and dark fills. */
-.map-label > span {
+/* Callouts: labels beside the island, each joined to its county by a
+   hand-drawn arrow (map.js). An overlay on the map, above Leaflet's panes. */
+.map-wrap {
+  position: relative;
+}
+
+.callout-arrows,
+.callouts {
   position: absolute;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  z-index: 800;
+  pointer-events: none;
+}
+
+.callout-arrows {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.callout {
+  position: absolute;
+  max-width: 116px;
   font-size: var(--fs-sm);
   font-weight: 700;
-  line-height: 1.15;
-  color: #fff;
-  text-align: center;
-  white-space: nowrap;
-  pointer-events: none;
-  text-shadow:
-    -1.5px -1.5px 0 var(--ink), 1.5px -1.5px 0 var(--ink),
-    -1.5px 1.5px 0 var(--ink), 1.5px 1.5px 0 var(--ink),
-    0 -1.5px 0 var(--ink), 0 1.5px 0 var(--ink),
-    -1.5px 0 0 var(--ink), 1.5px 0 0 var(--ink);
-}
-
-.map-label.on-light > span {
+  line-height: 1.1;
   color: var(--ink);
-  text-shadow:
-    -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff,
-    -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff,
-    0 -1.5px 0 #fff, 0 1.5px 0 #fff,
-    -1.5px 0 0 #fff, 1.5px 0 0 #fff;
 }
 
-.label-inner {
-  display: block;
+.callout.on-left {
+  left: 0;
+  text-align: right;
 }
 
-/* Handwritten "most" / "fewest" tag above the year's extremes. */
-.label-note {
+.callout.on-right {
+  right: 0;
+  text-align: left;
+}
+
+.callout-note {
   display: block;
   font-family: var(--hand);
-  font-size: 21px;
+  font-size: 20px;
   font-style: normal;
   font-weight: 700;
-  line-height: 0.9;
+  color: var(--orange);
+  line-height: 1;
 }
 
-.map-label b {
+.callout-name {
   display: block;
-  font-size: var(--fs-xs);
+}
+
+.callout b {
+  display: block;
+  font-family: var(--hand);
+  font-size: 19px;
+  color: var(--green);
 }
 
 /* ── Legend ─────────────────────────────────── */
@@ -760,6 +804,71 @@ h1 {
 }
 
 /* The "keep scrolling" arrow after the guess, gently bobbing. */
+/* The small scroll cue on each step's card: centred on its bottom edge,
+   bobbing like the one on the opening screen. */
+.step,
+.opener-steps .opener-step p,
+.step-caption {
+  position: relative;
+}
+
+.step-next {
+  position: absolute;
+  left: 50%;
+  bottom: -19px;
+  width: 36px;
+  height: 36px;
+  margin-left: -18px;
+  padding: 0;
+  /* White behind the drawing, so the card's edge doesn't show through. */
+  background: radial-gradient(circle at 46% 46%, #fff 0 40%, transparent 41%);
+  border: none;
+  cursor: pointer;
+  pointer-events: auto;
+  animation: bob 1.8s ease-in-out infinite;
+}
+
+.step-next img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* At the foot of a pinned graphic, while none of its cards is on screen. */
+.graphic-next {
+  bottom: 22px;
+  z-index: 1001;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.scrolly.is-idle .graphic-next {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* At the end of a section with no text box. */
+.section-next {
+  position: relative;
+  left: auto;
+  bottom: auto;
+  display: block;
+  margin: 36px auto 0;
+}
+
+.step-next:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step-next {
+    animation: none;
+  }
+}
+
 @keyframes bob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(6px); }
@@ -1535,13 +1644,13 @@ h1 {
 /* ── Responsive ─────────────────────────────── */
 @media (max-width: 900px) {
   .topnav-inner {
-    height: 72px;
+    height: 88px;
     padding: 0 16px;
   }
 
   .brand-logo {
-    width: 52px;
-    height: 52px;
+    width: 78px;
+    height: 78px;
   }
 
   .brand-name {
@@ -1733,7 +1842,7 @@ h1 {
     position: absolute;
     left: 0;
     right: 0;
-    bottom: 16px;
+    bottom: 26px;
     z-index: 1000;
     padding: 14px 16px;
     background: #fff;
@@ -1745,6 +1854,13 @@ h1 {
 
   .step-caption:empty {
     visibility: hidden;
+  }
+
+  /* The invisible steps' own cues stay out of the way; the caption box
+     shows its copy. */
+  .scrolly-steps .step-next,
+  .opener-steps .step-next {
+    display: none;
   }
 
   .step-caption p {
@@ -1778,8 +1894,22 @@ h1 {
 
   /* What's left above the caption, after the timeline and the headline. */
   #map {
-    height: calc(100svh - var(--head-h) - var(--cap-h) - 220px);
-    min-height: 220px;
+    height: calc(100svh - var(--head-h) - var(--cap-h) - 175px);
+    min-height: 240px;
+  }
+
+  /* Narrower callouts beside the small map. */
+  .callout {
+    max-width: 80px;
+    font-size: 13px;
+  }
+
+  .callout-note {
+    font-size: 16px;
+  }
+
+  .callout b {
+    font-size: 15px;
   }
 
   /* The 10 x 10 people (about 1.12 times as tall as wide) fit above the

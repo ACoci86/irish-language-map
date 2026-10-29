@@ -348,6 +348,117 @@ function buildClosing() {
   onceInView(el, () => mark.show(), 0.6);
 }
 
+// A small copy of the scroll cue on every step's text card (and so on the
+// phone caption box, which copies the card): a hint to keep going where the
+// graphic is pinned and the page can look as if it has stopped. Tapping it
+// glides to the next step, or past the section after its last step.
+const cueButton = (extra = "") =>
+  `<button type="button" class="step-next ${extra}" aria-label="Next"><img src="img/scroll-cue.svg" alt=""></button>`;
+
+function buildStepCues() {
+  document.querySelectorAll(".step:not(.opener-spacer)").forEach((step) => {
+    const card = step.classList.contains("opener-step") ? step.querySelector("p") : step;
+    card.insertAdjacentHTML("beforeend", cueButton());
+  });
+
+  // Pinned sections also get one at the foot of the graphic, shown while
+  // none of the section's text cards is on screen (on phones, while its
+  // caption box is still empty): as the section first comes into view, say.
+  document.querySelectorAll(".scrolly").forEach((section) => {
+    const graphic = section.querySelector(".scrolly-graphic");
+    graphic.insertAdjacentHTML("beforeend", cueButton("graphic-next"));
+    const caption = graphic.querySelector(".step-caption");
+    const onScreen = new Set();
+    section.updateIdle = () =>
+      section.classList.toggle(
+        "is-idle",
+        phoneLayout.matches ? !caption || !caption.textContent.trim() : onScreen.size === 0,
+      );
+    const watch = new IntersectionObserver((entries) => {
+      entries.forEach((e) => (e.isIntersecting ? onScreen.add(e.target) : onScreen.delete(e.target)));
+      section.updateIdle();
+    });
+    section.querySelectorAll(".step").forEach((step) => watch.observe(step));
+    section.updateIdle();
+  });
+
+  // And the sections with no text box end with one that leads on.
+  document.querySelectorAll(".north-south, .county-detail").forEach((section) => {
+    section.insertAdjacentHTML("beforeend", cueButton("section-next"));
+  });
+
+  const steps = [...document.querySelectorAll(".step:not(.opener-spacer)")];
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest(".step-next");
+    if (!button) return;
+    // Land a step in its trigger band (lower on phones), or a section's top
+    // just under the header.
+    const band = phoneLayout.matches ? 0.72 : 0.45;
+    let target;
+    if (button.classList.contains("graphic-next")) {
+      // The section's next step that hasn't reached the band yet.
+      const section = button.closest(".scrolly");
+      target =
+        [...section.querySelectorAll(".step")].find(
+          (s) => s.getBoundingClientRect().top > window.innerHeight * band + 10,
+        ) || section.nextElementSibling;
+    } else if (button.classList.contains("section-next")) {
+      target = button.closest("section").nextElementSibling;
+    } else {
+      const step = button.closest(".step") || button.closest(".step-caption").step;
+      const next = steps[steps.indexOf(step) + 1];
+      const section = step.closest("section");
+      // Is the next step in the same section? Otherwise go to the next section.
+      target = next && next.closest("section") === section ? next : section.nextElementSibling;
+    }
+    if (!target) return;
+    const y = target.classList.contains("step")
+      ? target.getBoundingClientRect().top + window.scrollY - window.innerHeight * band
+      : target.getBoundingClientRect().top + window.scrollY;
+    if (animate) gsap.to(window, { scrollTo: y, duration: 1, ease: "power2.inOut" });
+    else window.scrollTo(0, y);
+  });
+}
+
+// The opening screen's scroll cue. Tapping it glides to the first sentence.
+// And if the reader hasn't scrolled after a few seconds, the screen lifts a
+// little and settles back, a hint that there's more below; it repeats now
+// and then until they scroll.
+function buildScrollHint() {
+  const cue = document.getElementById("hero-scroll");
+  const first = document.querySelector(".opener-step");
+  if (!cue || !first) return;
+
+  cue.addEventListener("click", () => {
+    const y = first.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.5;
+    if (animate) gsap.to(window, { scrollTo: y, duration: 1.2, ease: "power2.inOut" });
+    else window.scrollTo(0, y);
+  });
+
+  if (!animate) return;
+  const opener = document.getElementById("opener");
+  let timer = setTimeout(nudge, 3000);
+  function nudge() {
+    if (window.scrollY > 10) return;
+    gsap
+      .timeline()
+      .to(opener, { y: -40, duration: 0.45, ease: "power2.out" })
+      .to(opener, { y: 0, duration: 0.9, ease: "bounce.out" });
+    timer = setTimeout(nudge, 6000);
+  }
+  window.addEventListener(
+    "scroll",
+    function stop() {
+      if (window.scrollY <= 10) return;
+      clearTimeout(timer);
+      gsap.killTweensOf(opener);
+      gsap.set(opener, { y: 0 });
+      window.removeEventListener("scroll", stop);
+    },
+    { passive: true },
+  );
+}
+
 // The conclusion's three cards drop in one after another, settling at their
 // slight tilt.
 function buildFindings() {
@@ -452,9 +563,19 @@ function refreshOutlines() {
   });
 }
 
-// Labels drawn on the map for the year's highest and lowest counties and for
-// the pinned one, so the extremes read without hovering.
-const labelLayer = L.layerGroup().addTo(map);
+// Labels for the year's highest and lowest counties and the pinned one, so
+// the extremes read without hovering. They sit beside the island, never on
+// it, each joined to its county by a hand-drawn arrow: an overlay on the map
+// (labels in a div, arrows in an svg), redrawn whenever the map changes.
+const mapWrap = document.querySelector(".map-wrap");
+mapWrap.insertAdjacentHTML(
+  "beforeend",
+  `<svg class="callout-arrows" aria-hidden="true"></svg><div class="callouts" aria-hidden="true"></div>`,
+);
+const calloutArrows = mapWrap.querySelector(".callout-arrows");
+const calloutLabels = mapWrap.querySelector(".callouts");
+// Room each side of the island for the labels.
+const calloutRoom = () => (phoneLayout.matches ? 84 : 120);
 
 // Where to anchor a county's label: the middle of its largest polygon, so
 // offshore islands don't pull it out to sea.
@@ -480,7 +601,8 @@ function labelPoint(layer) {
 let previousLabels = new Set();
 
 function updateLabels() {
-  labelLayer.clearLayers();
+  calloutLabels.innerHTML = "";
+  calloutArrows.innerHTML = "";
   if (!countyLayer) return;
 
   const entries = Object.entries(currentYearData())
@@ -497,57 +619,82 @@ function updateLabels() {
     notes[entries[0][0]] = "most";
   }
   if (pinnedCounty) labelled.add(pinnedCounty);
-  const markers = [];
 
-  labelled.forEach((county) => {
-    const layer = county && layersByCounty[county];
-    if (!layer) return;
+  const box = mapWrap.getBoundingClientRect();
+  const mapBox = document.getElementById("map").getBoundingClientRect();
+  const midX = mapBox.left - box.left + mapBox.width / 2;
 
-    const value = currentYearData()[county];
-    const valueText = value == null ? "no data" : `${value.toFixed(1)}%`;
+  // Each label goes on the side of the island its county is on.
+  const callouts = [...labelled]
+    .filter((county) => county && layersByCounty[county])
+    .map((county) => {
+      const point = map.latLngToContainerPoint(labelPoint(layersByCounty[county]));
+      const anchor = [point.x + mapBox.left - box.left, point.y + mapBox.top - box.top];
+      const value = currentYearData()[county];
+      const el = document.createElement("div");
+      el.className = "callout";
+      el.innerHTML =
+        (notes[county] ? `<i class="callout-note">${notes[county]}</i>` : "") +
+        `<span class="callout-name">${phoneLayout.matches ? prettyName(county).split(" / ")[0] : prettyName(county)}</span>` +
+        `<b>${value == null ? "no data" : `${value.toFixed(1)}%`}</b>`;
+      calloutLabels.appendChild(el);
+      return { county, anchor, el, side: anchor[0] < midX ? "left" : "right" };
+    });
 
-    const marker = L.marker(labelPoint(layer), {
-      interactive: false,
-      keyboard: false,
-      icon: L.divIcon({
-        // Dark text with a light halo on pale counties, the reverse on dark.
-        className: textOn(value) === INK ? "map-label on-light" : "map-label",
-        iconSize: null,
-        html:
-          `<span><span class="label-inner">` +
-          (notes[county] ? `<i class="label-note">${notes[county]}</i>` : "") +
-          `${prettyName(county)}` +
-          `<b>${valueText}</b></span></span>`,
-      }),
-    }).addTo(labelLayer);
-    markers.push(marker);
-
-    // Only counties that just gained a label fade in, so playback stays calm.
-    if (animate && !previousLabels.has(county)) {
-      gsap.from(marker.getElement().querySelector(".label-inner"), {
-        opacity: 0,
-        duration: 0.35,
-        ease: "power1.out",
-      });
+  // Stack each side's labels by their county's height, spaced so they
+  // never overlap and kept inside the map's box.
+  ["left", "right"].forEach((side) => {
+    const group = callouts.filter((c) => c.side === side).sort((a, b) => a.anchor[1] - b.anchor[1]);
+    let floor = mapBox.top - box.top;
+    group.forEach((c) => {
+      c.el.classList.add(`on-${side}`);
+      const h = c.el.offsetHeight;
+      c.top = Math.max(floor, c.anchor[1] - h / 2);
+      floor = c.top + h + 8;
+    });
+    const bottom = mapBox.bottom - box.top;
+    for (let k = group.length - 1; k >= 0; k--) {
+      const c = group[k];
+      const limit = k === group.length - 1 ? bottom : group[k + 1].top - 8;
+      if (c.top + c.el.offsetHeight > limit) c.top = limit - c.el.offsetHeight;
     }
+    group.forEach((c) => {
+      c.el.style.top = `${c.top}px`;
+    });
   });
 
-  // Neighbouring labels (Dublin beside Wicklow, say) would overlap: each
-  // one that touches an earlier label moves up or down until it's clear.
-  const placed = [];
-  markers.forEach((marker) => {
-    const label = marker.getElement().firstElementChild;
-    let box = label.getBoundingClientRect();
-    placed.forEach((other) => {
-      const clear =
-        box.right < other.left || box.left > other.right || box.bottom < other.top || box.top > other.bottom;
-      if (clear) return;
-      const above = box.top + box.height / 2 < other.top + other.height / 2;
-      const shift = above ? other.top - box.bottom - 4 : other.bottom - box.top + 4;
-      label.style.top = `${(parseFloat(label.style.top) || 0) + shift}px`;
-      box = label.getBoundingClientRect();
-    });
-    placed.push(box);
+  // The arrows: a wobbly curve from the label's inner edge into the county,
+  // with an open head.
+  calloutArrows.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
+  const rc = typeof rough !== "undefined" ? rough.svg(calloutArrows) : null;
+  callouts.forEach((c, i) => {
+    const r = c.el.getBoundingClientRect();
+    const from = [c.side === "left" ? r.right - box.left + 4 : r.left - box.left - 4, r.top - box.top + r.height / 2];
+    const [tx, ty] = c.anchor;
+    // Stop just short of the county's middle, bending gently on the way.
+    const dx = tx - from[0];
+    const dy = ty - from[1];
+    const len = Math.hypot(dx, dy) || 1;
+    const to = [tx - (dx / len) * 6, ty - (dy / len) * 6];
+    const ctrl = [(from[0] + to[0]) / 2 - dy * 0.18, (from[1] + to[1]) / 2 + dx * 0.18];
+    const dir = Math.atan2(to[1] - ctrl[1], to[0] - ctrl[0]);
+    const arm = (turn) => [to[0] - 8 * Math.cos(dir + turn), to[1] - 8 * Math.sin(dir + turn)];
+    const curve = `M${from[0]} ${from[1]} Q${ctrl[0]} ${ctrl[1]} ${to[0]} ${to[1]}`;
+    if (rc) {
+      const opts = { stroke: INK, strokeWidth: 1.6, roughness: 0.9, bowing: 0.8, seed: 40 + i };
+      calloutArrows.appendChild(rc.path(curve, opts));
+      calloutArrows.appendChild(rc.linearPath([arm(0.5), to, arm(-0.5)], { ...opts, roughness: 0.4 }));
+    } else {
+      calloutArrows.insertAdjacentHTML(
+        "beforeend",
+        `<path d="${curve} M${arm(0.5)} L${to} L${arm(-0.5)}" fill="none" stroke="${INK}" stroke-width="1.6"/>`,
+      );
+    }
+
+    // Only counties that just gained a label fade in, so steps stay calm.
+    if (animate && !previousLabels.has(c.county)) {
+      gsap.from(c.el, { opacity: 0, duration: 0.35, ease: "power1.out" });
+    }
   });
 
   previousLabels = labelled;
@@ -628,6 +775,9 @@ function updateContext() {
 // ─────────────────────────────────────────────
 
 let countyGeojson = null;
+// The opener's light copy of the boundaries (data/opener.geojson), loaded
+// with the census figures so the opening map draws at once.
+let openerGeojson = null;
 
 // A gentle, repeatable wobble for the county outlines, so they read as drawn
 // by hand. It depends only on the point, so neighbouring counties move their
@@ -655,8 +805,9 @@ function wobbleGeojson(geojson) {
 }
 
 // Expects allData to already be loaded and currentYear to be set.
-async function loadCountyBoundaries() {
-  const response = await fetch("data/ireland-32-counties-web.geojson");
+// `download` is the fetch of data/counties.geojson, started early.
+async function loadCountyBoundaries(download) {
+  const response = await download;
 
   if (!response.ok) {
     throw new Error(`Could not load GeoJSON: ${response.status}`);
@@ -676,7 +827,9 @@ async function loadCountyBoundaries() {
 
 function fitIsland() {
   map.invalidateSize();
-  map.fitBounds(countyLayer.getBounds(), { padding: [8, 8] });
+  const room = calloutRoom();
+  map.fitBounds(countyLayer.getBounds(), { paddingTopLeft: [room, 8], paddingBottomRight: [room, 8] });
+  updateLabels();
 }
 
 // The map box changes size with the layout, so refit the island to it.
@@ -733,13 +886,10 @@ function setYear(year) {
 
 // Scroll steps, after the sticky-graphic stories on The Pudding: as each
 // step reaches the trigger line it updates its graphic. Map steps (data-year)
-// move the map to their census and pin their county, falling back to the
-// reader's own county from the guess; chart steps (data-story) switch the
-// story chart to their stage.
+// move the map to their census and pin their county (or none), so only the
+// steps decide what's outlined; chart steps (data-story) switch the story
+// chart to their stage.
 const storySteps = Array.from(document.querySelectorAll(".step"));
-
-// The county the reader picked in the guess, if they made one.
-let readerCounty = null;
 
 // Phones: a fixed caption box at the bottom of each pinned graphic shows the
 // active step's text, crossfading as the reader scrolls, so no card slides
@@ -762,6 +912,7 @@ function showCaption(step) {
   const html = step.classList.contains("opener-spacer") ? "" : step.innerHTML;
   if (!animate || !phoneLayout.matches) {
     caption.innerHTML = html;
+    host.updateIdle?.();
     return;
   }
   gsap.killTweensOf(caption);
@@ -772,6 +923,7 @@ function showCaption(step) {
     ease: "power1.in",
     onComplete: () => {
       caption.innerHTML = html;
+      host.updateIdle?.();
       gsap.to(caption, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" });
     },
   });
@@ -780,8 +932,10 @@ function showCaption(step) {
 const stepObserver = new IntersectionObserver(
   (entries) => {
     entries.forEach((entry) => {
-      if (!entry.isIntersecting || !countyLayer) return;
       const step = entry.target;
+      // The opener can move as soon as it's drawn; the other steps need the
+      // main map.
+      if (!entry.isIntersecting || (!countyLayer && !step.dataset.opener)) return;
       const group = step.closest(".scrolly-steps, .opener-steps");
       group
         .querySelectorAll(".step")
@@ -801,7 +955,7 @@ const stepObserver = new IntersectionObserver(
         setStoryStep(Number(step.dataset.story));
         return;
       }
-      pinnedCounty = step.dataset.county || readerCounty;
+      pinnedCounty = step.dataset.county || null;
       setYear(step.dataset.year);
     });
   },
@@ -994,12 +1148,6 @@ guessCounty.addEventListener("change", () => {
 document.getElementById("guess-reveal").addEventListener("click", () => {
   if (!countyLayer) return;
   revealGuess();
-
-  // The map keeps the reader's county pinned from now on.
-  readerCounty = guessCounty.value;
-  pinnedCounty = readerCounty;
-  refreshOutlines();
-  updateLabels();
 });
 
 // ─────────────────────────────────────────────
@@ -1415,7 +1563,7 @@ let openerCounties = null;
 
 function buildOpenerMap() {
   const el = document.getElementById("opener-map");
-  if (!el || typeof d3 === "undefined" || !countyGeojson) return;
+  if (!el || typeof d3 === "undefined" || !openerGeojson) return;
 
   const first = years[0];
   // Phones get a tall 4 x 8 grid, so the county names stay readable.
@@ -1434,7 +1582,7 @@ function buildOpenerMap() {
       this.stream.point(lon * k, -lat);
     },
   });
-  const [[fx0, fy0], [fx1, fy1]] = d3.geoPath(flat).bounds(countyGeojson);
+  const [[fx0, fy0], [fx1, fy1]] = d3.geoPath(flat).bounds(openerGeojson);
   const fit = Math.min((narrow ? 360 : 400) / (fx1 - fx0), (OPENER_H - 20) / (fy1 - fy0));
   const ox = OPENER_W / 2 - ((fx0 + fx1) / 2) * fit;
   const oy = OPENER_H / 2 - ((fy0 + fy1) / 2) * fit;
@@ -1459,11 +1607,11 @@ function buildOpenerMap() {
   // Grid cells ranked by 1851 share.
   const cellW = OPENER_W / cols;
   const cellH = OPENER_H / gridRows;
-  const ranked = countyGeojson.features
+  const ranked = openerGeojson.features
     .map((f) => f.properties.COUNTY)
     .sort((a, b) => allData[first][b] - allData[first][a]);
 
-  openerCounties = countyGeojson.features.map((feature) => {
+  openerCounties = openerGeojson.features.map((feature) => {
     const county = feature.properties.COUNTY;
     const value = allData[first][county];
     const [[x0, y0], [x1, y1]] = path.bounds(feature);
@@ -1478,8 +1626,10 @@ function buildOpenerMap() {
       value,
       d: path(feature),
       band: value >= 40 ? "high" : value < 5 ? "low" : "mid",
-      // Same transform shape in both places, so D3 can tween between them.
+      // Same transform shape in every place, so D3 can tween between them.
       mapAt: `translate(${bx},${by}) scale(1) translate(${-bx},${-by})`,
+      // Scattered out from the middle of the island, for the opening gather.
+      scatterAt: `translate(${bx + (bx - OPENER_W / 2) * 0.9 + (rank % 3 - 1) * 24},${by + (by - OPENER_H / 2) * 0.9 + (rank % 4 - 1.5) * 18}) scale(0.6) translate(${-bx},${-by})`,
       gridAt: `translate(${cx},${cy}) scale(${size}) translate(${-bx},${-by})`,
       labelX: cx,
       labelY: cy + cellH * 0.42,
@@ -1517,23 +1667,26 @@ function buildOpenerMap() {
     .attr("opacity", 0)
     .text((c) => `${c.value.toFixed(1)}%`);
 
-  // On load the counties appear one after another, west to east, as if the
-  // map were being drawn county by county. (A stroke "draw-in" doesn't work
-  // here: the outlines keep their width while the shapes scale.)
-  if (animate) {
-    const [west, east] = d3.extent(countyGeojson.features, (f) => path.centroid(f)[0]);
-    // A named transition, so a stage change (which moves the shapes) doesn't
-    // cancel it.
-    shapes
+  // As soon as the page opens, the counties fly in from around the screen
+  // and come together as the island (the reverse of the later move into the
+  // ranked grid). Further down the page there's nothing to gather. Returns
+  // a promise that settles when the gather is over.
+  const stage = Number(document.getElementById("opener").dataset.stage) || 0;
+  if (animate && stage === 0) {
+    return shapes
+      .attr("transform", (c) => c.scatterAt)
       .attr("opacity", 0)
-      .transition("appear")
-      .delay((c, i) => ((path.centroid(countyGeojson.features[i])[0] - west) / (east - west)) * 1400)
-      .duration(600)
+      .transition("gather")
+      .delay((c, i) => i * 18)
+      .duration(1100)
       .ease(d3.easeCubicOut)
-      .attr("opacity", 1);
+      .attr("transform", (c) => c.mapAt)
+      .attr("opacity", 1)
+      .end()
+      .catch(() => {}); // interrupted by a scroll: fine
   }
-
-  setOpenerStage(Number(document.getElementById("opener").dataset.stage) || 0);
+  setOpenerStage(stage);
+  return Promise.resolve();
 }
 
 // Moves the counties to a stage: 0 the blank map, 1 the blank ranked grid,
@@ -1549,6 +1702,8 @@ function setOpenerStage(stage) {
 
   svg
     .selectAll(".oc")
+    .interrupt("gather")
+    .attr("opacity", 1)
     .transition()
     .duration(t)
     .delay((c, i) => (animate ? i * 12 : 0))
@@ -1761,21 +1916,43 @@ function buildSketchMaps() {
 // ─────────────────────────────────────────────
 
 async function initialiseMap() {
-  await loadAllData();
+  // The census figures and the opener's light shapes load together, and the
+  // opening map draws as soon as both are in, before the full boundaries.
+  const [, opener] = await Promise.all([
+    loadAllData(),
+    fetch("data/opener.geojson").then((response) => response.json()),
+  ]);
+  // The main map's boundaries start downloading now, behind the opener.
+  const boundaries = fetch("data/counties.geojson");
+  wobbleGeojson(opener);
+  openerGeojson = opener;
+  const gathered = buildOpenerMap() || Promise.resolve();
+  buildScrollHint();
+  buildStepCues();
+
+  // The rest of the page is screens away. It's built once the opening has
+  // played (so the counties never freeze mid-flight), and one piece per
+  // task, so the page never locks up for long if the reader scrolls early.
+  await gathered;
+  const nextTask = () => new Promise((resolve) => setTimeout(resolve));
   currentYear = years[0];
   buildLegend();
-  await loadCountyBoundaries();
+  await loadCountyBoundaries(boundaries);
+  await nextTask();
   setYear(currentYear);
-
-  buildOpenerMap();
-  buildPeople();
-  buildGuess();
-  buildStoryChart();
-  buildNorthSouth();
-  buildSketchMaps();
-  buildFindings();
-  buildClosing();
-  buildHeadingUnderlines();
+  for (const build of [
+    buildHeadingUnderlines,
+    buildStoryChart,
+    buildPeople,
+    buildNorthSouth,
+    buildGuess,
+    buildSketchMaps,
+    buildFindings,
+    buildClosing,
+  ]) {
+    await nextTask();
+    build();
+  }
 
   // A reload partway down restores the scroll position before the data has
   // loaded, so the step already on screen was skipped; observing the steps

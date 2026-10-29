@@ -32,9 +32,13 @@
                 <header class="hero">
                     <h1>Where did the Irish language go?</h1>
                     <p class="dek">An interactive history of Irish speakers, <%= firstYear %>&ndash;<%= lastYear %></p>
-                    <%# A hand-drawn scroll cue (VectorCraft): a circle with an orange
-                        chevron, gently nudging down. %>
-                    <img class="hero-scroll" src="img/scroll-cue.svg" width="64" height="64" alt="Scroll down to begin">
+                    <%# The hand-drawn scroll cue (VectorCraft). Tapping it glides to
+                        the first sentence; if nobody scrolls, the screen gives a
+                        small lift after a few seconds (map.js). %>
+                    <button class="hero-scroll" id="hero-scroll" type="button" aria-label="Scroll down to begin">
+                        <img src="img/scroll-cue.svg" width="64" height="64" alt="">
+                        <span>scroll</span>
+                    </button>
                 </header>
             </div>
 

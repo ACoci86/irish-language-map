@@ -8,6 +8,12 @@ app.use(express.static("public"));
 // Serve the root data folder so the page can fetch data/ability.json the same
 // way it does on the static (GitHub Pages) build.
 app.use("/data", express.static("data"));
+// The thinned county boundaries (written to dist/ by the build).
+const { openerShapes, countyShapes } = require("./opener-shapes");
+const openerGeojson = openerShapes();
+const countyGeojson = countyShapes();
+app.get("/data/opener.geojson", (req, res) => res.json(openerGeojson));
+app.get("/data/counties.geojson", (req, res) => res.json(countyGeojson));
 
 app.get(["/", "/index.html"], (req, res) => {
   const abilityYears = Object.keys(abilityData).sort(
