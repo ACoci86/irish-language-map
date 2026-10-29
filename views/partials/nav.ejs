@@ -2,48 +2,32 @@
 <nav class="topnav">
     <div class="topnav-inner">
         <a class="brand" href="index.html">
-            <img class="brand-logo" src="logo.png" width="750" height="1005" alt="">
+            <img class="brand-logo" src="logo.png" width="768" height="768" alt="">
             <span class="brand-text">
                 <span class="brand-name">Irish language map</span>
-                <span class="brand-tag">Data. Insights. Gaeilge.</span>
             </span>
         </a>
 
-        <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="nav-links">
-            <svg class="ogham-menu" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                <line x1="12" y1="2.5" x2="12" y2="21.5"/>
-                <line x1="12" y1="5.5" x2="19" y2="5.5"/>
-                <line x1="12" y1="8" x2="19" y2="8"/>
-                <line x1="5.5" y1="12" x2="18.5" y2="12"/>
-                <line x1="5" y1="16" x2="12" y2="16"/>
-                <line x1="5" y1="18.5" x2="12" y2="18.5"/>
-            </svg>
-            <svg class="ogham-close" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                <line x1="12" y1="2.5" x2="12" y2="21.5"/>
-                <line x1="8" y1="5" x2="16" y2="8"/>
-                <line x1="8" y1="9" x2="16" y2="12"/>
-                <line x1="8" y1="13" x2="16" y2="16"/>
-                <line x1="8" y1="17" x2="16" y2="20"/>
-            </svg>
+        <%# Phones: a handwritten "Menu" that opens the links as a full page. %>
+        <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">
+            <span class="toggle-open">Menu</span>
+            <span class="toggle-close">Close</span>
         </button>
 
         <div class="nav-links" id="nav-links">
             <a href="index.html" class="<%= active === 'explore' ? 'active' : '' %>">
-                <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
-                Explore Data
+                <img class="nav-spot" src="img/island.svg" alt="">
+                <span class="nav-label">Explore Data</span>
             </a>
             <a href="about.html" class="<%= active === 'about' ? 'active' : '' %>">
-                <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
-                About
+                <img class="nav-spot" src="img/spot-speaker.svg" alt="">
+                <span class="nav-label">About</span>
             </a>
             <a href="methodology.html" class="<%= active === 'methodology' ? 'active' : '' %>">
-                <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-                Methodology
+                <img class="nav-spot" src="img/spot-decline.svg" alt="">
+                <span class="nav-label">Methodology</span>
             </a>
-            <a href="data/ability.json" download="irish-ability-by-county.json">
-                <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
-                Downloads
-            </a>
+            <p class="nav-proverb" lang="ga">Tír gan teanga, tír gan anam.</p>
         </div>
     </div>
 </nav>

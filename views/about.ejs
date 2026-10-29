@@ -10,61 +10,75 @@
 
     <div class="page">
         <header class="masthead">
-            <div class="masthead-text">
-                <h1>About</h1>
-                <p class="lead">
-                    An interactive map of how many people reported being able to
-                    speak Irish in each county, across every census from 1851 to
-                    2022.
-                </p>
-            </div>
+            <img class="masthead-spot" src="img/spot-speaker.svg" alt="">
+            <h1>About</h1>
+            <p class="lead">
+                A hand-drawn history of who could speak Irish, county by county,
+                in every census from 1851 to 2022.
+            </p>
         </header>
 
         <div class="prose">
-            <p>
-                Each county is shaded by the percentage of people aged 3 and over
-                who told the census they could speak Irish. The colour scale is
-                fixed across every year, so a shade always means the same
-                percentage, which lets you watch the long decline and the more
-                recent changes. Press <strong>Play animation</strong> on the map
-                to step through the census years, or pick a year yourself, and
-                click any county to see its exact figure and its trend over time.
-            </p>
+            <%# A personal note from the maker, on a pinned card. %>
+            <aside class="note-card">
+                <span class="note-tag">A note from me</span>
+                <p class="note-hello">Dia duit!</p>
+                <p>
+                    I&rsquo;m Alessio Coci, and I made this site. It started with
+                    something I couldn&rsquo;t stop noticing: in Ireland, everything
+                    is in two languages. Road signs, forms, announcements, all in
+                    English and Irish. And yet I hardly ever hear anyone speak
+                    Irish. So <strong>where did the Irish language go?</strong>
+                </p>
+                <p>
+                    The census has asked people about Irish since 1851, so the
+                    answer was already out there, county by county. It just needed
+                    drawing.
+                </p>
+                <p>
+                    What I found is that it didn&rsquo;t simply disappear. It moved:
+                    from the Atlantic coast to the whole of the Republic, and from
+                    the home to the classroom. Today about 4 in 10 people say they
+                    can speak it, but fewer than 2 in 100 speak it daily outside
+                    school. The signs are bilingual; everyday life mostly
+                    isn&rsquo;t.
+                </p>
+                <p>
+                    If you spot a mistake, or you have a story about Irish in your
+                    own county, I&rsquo;d love to hear it.
+                </p>
+                <p class="note-sign">
+                    Alessio &middot; <a href="https://acoci.dev" target="_blank" rel="noopener">acoci.dev</a>
+                </p>
+            </aside>
 
-            <p>
-                The map covers all 32 counties: the 26 counties of the Republic
-                and the six counties of Northern Ireland. Because the two parts
-                of the island ran their censuses differently over time, some
-                years are only available for part of the island. The
-                <a href="methodology.html">methodology page</a> explains exactly
-                what is shown, what is estimated, and how comparable the figures
-                are between distant years.
-            </p>
+            <h2>What is here</h2>
+            <ul class="hand-list">
+                <li><strong>The story.</strong> Scroll from 1851 to today: where Irish was strong, how it fell, and how it spread out again.</li>
+                <li><strong>Your county.</strong> Guess its 1851 figure, then see its whole history against the Republic&rsquo;s average.</li>
+                <li><strong>Every census on one map.</strong> The colours keep the same meaning in every year, so a shade is always the same share of people.</li>
+            </ul>
 
-            <h2>Credits</h2>
-            <ul>
+            <h2>Thank you</h2>
+            <ul class="hand-list">
                 <li>
-                    Republic of Ireland figures from the Central Statistics
-                    Office (<a href="https://data.cso.ie/" target="_blank" rel="noopener">data.cso.ie</a>).
-                </li>
-                <li>
-                    Northern Ireland figures compiled by
                     <a href="https://bsky.app/profile/phelimbirch.bsky.social" target="_blank" rel="noopener">Phelim Birch</a>,
-                    who generously shared the dataset from his degree project.
+                    who compiled the Northern Ireland figures for his degree project
+                    and generously shared them.
                 </li>
                 <li>
-                    County boundaries from Ordnance Survey Ireland (OSi) and
-                    Ordnance Survey of Northern Ireland (OSNI).
+                    The Central Statistics Office, for the Republic&rsquo;s figures
+                    (<a href="https://data.cso.ie/" target="_blank" rel="noopener">data.cso.ie</a>).
                 </li>
                 <li>
-                    Map rendering by <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>.
+                    Ordnance Survey Ireland and Ordnance Survey of Northern Ireland,
+                    for the county boundaries.
                 </li>
             </ul>
 
             <p>
-                The project is open source. You can read the code, report an
-                issue, or download the data on
-                <a href="https://github.com/ACoci86/irish-language-map" target="_blank" rel="noopener">GitHub</a>.
+                How the figures were put together, and how far to trust them, is
+                on the <a href="methodology.html">methodology page</a>.
             </p>
         </div>
 

@@ -31,7 +31,7 @@ async function build() {
   const about = await ejs.renderFile("views/about.ejs", {
     title: "About - Irish language map",
     description:
-      "About the Irish language map: what it shows, the census data sources, and credits.",
+      "About the Irish language map: who made it, what it shows, and thanks to the people behind the data.",
     canonical: `${SITE}/about.html`,
   });
   fs.writeFileSync("dist/about.html", about);
@@ -61,6 +61,7 @@ async function build() {
   // 2. Copy the static assets the page loads at runtime.
   fs.cpSync("public/css", "dist/css", { recursive: true });
   fs.cpSync("public/js", "dist/js", { recursive: true });
+  fs.cpSync("public/img", "dist/img", { recursive: true });
 
   // 3. Copy only the data the site actually uses. The 92 MB raw geojson is
   //    deliberately excluded; the app only reads the 4 MB web version.

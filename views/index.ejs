@@ -8,100 +8,300 @@
 <body>
 <%- include("partials/nav", { active: "explore" }) %>
 
+<%
+  var firstYear = Number(abilityYears[0]);
+  var lastYear = Number(abilityYears[abilityYears.length - 1]);
+  var yearPos = function (y) { return ((Number(y) - firstYear) / (lastYear - firstYear)) * 100; };
+%>
+    <%# Shared SVG defs: the hatch patterns for the maps and charts, added
+        by map.js. %>
+    <svg class="filters" width="0" height="0" aria-hidden="true" focusable="false">
+        <defs id="hatches"></defs>
+    </svg>
+
     <div class="page" id="top">
-        <header class="masthead">
-            <div class="masthead-text">
-                <h1>Reported ability to speak Irish</h1>
-                <p class="lead">
-                    Percentage of people aged 3 and over who reported that they
-                    could speak Irish. This measures self-reported ability, not
-                    fluency or regular use.
-                </p>
+        <%# 01 · Introduction. The 32 counties (D3) stay pinned while the title
+            and four sentences scroll past: they fly apart into a grid ranked
+            by their 1851 answer, take on their colours, then fly back
+            together as the 1851 map. %>
+        <section class="opener" id="opener" data-stage="0">
+            <%# The title is pinned together with the island, so it doesn't slide
+                over the map; it fades out when the first sentence arrives. %>
+            <div class="opener-graphic">
+                <div class="opener-map" id="opener-map" aria-hidden="true"></div>
+                <header class="hero">
+                    <h1>Where did the Irish language go?</h1>
+                    <p class="dek">An interactive history of Irish speakers, <%= firstYear %>&ndash;<%= lastYear %></p>
+                    <%# A hand-drawn scroll cue (VectorCraft): a circle with an orange
+                        chevron, gently nudging down. %>
+                    <img class="hero-scroll" src="img/scroll-cue.svg" width="64" height="64" alt="Scroll down to begin">
+                </header>
             </div>
-        </header>
 
-        <div class="controls-row">
-            <div class="toolbar-group">
-                <button id="play-button" type="button" aria-pressed="false">
-                    <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-                    Play animation
-                </button>
-
-                <label for="year-select">Census year</label>
-                <select id="year-select">
-                  <% abilityYears.forEach((year) => { %>
-                    <option
-                      value="<%= year %>"
-                      <%= year === defaultYear ? "selected" : "" %>
-                    >
-                      <%= year %>
-                    </option>
-                  <% }); %>
-                </select>
-            </div>
-        </div>
-
-        <div class="explorer">
-            <div class="map-panel">
-                <div id="map"></div>
-                <div class="map-caption">
-                    <div id="legend" class="map-legend"></div>
-                    <div class="map-hint">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
-                        <span>Hover or tap a county to see details</span>
-                    </div>
+            <div class="opener-steps">
+                <div class="step opener-spacer" data-opener="0" aria-hidden="true"></div>
+                <div class="step opener-step" data-opener="1">
+                    <p>In <%= firstYear %>, the census asked everyone in Ireland&rsquo;s 32 counties the same question: <em>can you speak Irish?</em></p>
+                </div>
+                <div class="step opener-step" data-opener="2">
+                    <p>In the <span class="key key-dark">west</span>, most people said yes. In Galway, 69.1%. In Mayo, 65.8%. In Kerry, 61.5%.</p>
+                </div>
+                <div class="step opener-step" data-opener="3">
+                    <p>On the <span class="key key-pale">east coast</span>, almost nobody did. In Wicklow, 0.1%. In Dublin, 1.2%.</p>
+                </div>
+                <div class="step opener-step" data-opener="4">
+                    <p>Two Irelands. This is the story of how that map changed over the next 170 years, and what &ldquo;speaking Irish&rdquo; has come to mean.</p>
                 </div>
             </div>
+        </section>
 
-            <aside class="sidebar">
-                <section id="county-panel" class="card county-panel" hidden>
-                    <button id="county-panel-close" class="county-panel-close" type="button" aria-label="Close">&times;</button>
-                    <div id="county-panel-body"></div>
-                </section>
+        <%# 02 · Change over time: the average line draws itself, pausing at
+            census years. History is given as context, not as a cause. %>
+        <section class="scrolly scrolly-chart">
+            <div class="chapter-head">
+                <img class="spot" src="img/spot-decline.svg" alt="">
+                <h2 class="section-title">The long decline</h2>
+            </div>
+            <div class="scrolly-graphic">
+                <figure class="story-figure">
+                    <div class="story-chart" id="story-chart" data-step="1"></div>
+                    <figcaption class="chart-caption" id="story-caption">
+                        Average of the 26 counties of the Republic, which have a figure in every census.
+                    </figcaption>
+                </figure>
+            </div>
 
-                <section class="card">
-                    <h2>
-                        <svg class="card-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
-                        Insights
-                    </h2>
-                    <p id="insight-text" class="insight-text"></p>
-                </section>
+            <div class="scrolly-steps">
+                <div class="step" data-story="1">
+                    <p>In <strong>1851</strong>, across the 26 counties that are now the Republic, the average county share was <strong>22.1%</strong>.</p>
+                    <p class="step-note">The census was taken as the Great Famine (1845&ndash;1852) was ending.</p>
+                </div>
+                <div class="step" data-story="2">
+                    <p>Then it fell, census after census, for sixty years, to its lowest point in <strong>1911: 13.9%</strong>.</p>
+                    <p class="step-note">The Gaelic League was founded in 1893 to revive the language. The line had not yet turned when the 1911 census was taken.</p>
+                </div>
+                <div class="step" data-story="3">
+                    <p>After independence it turned. By <strong>2002</strong> the average had more than tripled, to <strong>43.6%</strong>.</p>
+                    <p class="step-note">In 1922 the new Free State placed Irish at the centre of the national-school day. These dates are context: the census alone can&rsquo;t tell us what caused the change.</p>
+                </div>
+                <div class="step" data-story="4">
+                    <p>The counties also came together. In 1851, <strong>Galway</strong> and <span class="key key-teal">Wicklow</span> were <strong>69 points</strong> apart.</p>
+                </div>
+                <div class="step" data-story="5">
+                    <p>By 2022 they were <strong>9.8 points</strong> apart. The widest gap between any two Republic counties is now 13.6 points.</p>
+                </div>
+                <div class="step" data-story="6">
+                    <p>One jump stands out. From <strong>1991 to 1996</strong> the average rose 9.1 points, from 33.0% to 42.1%, in five years.</p>
+                    <p class="step-note">That is fast for a language. Treat it with some caution: a jump like this can come from how a question is asked or answered. The <a href="methodology.html">methodology</a> has more.</p>
+                </div>
+            </div>
+        </section>
 
-                <section class="card">
-                    <h2>
-                        <svg class="card-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4v11H4zm6-5h4v16h-4zm6 8h4v8h-4z"/></svg>
-                        Summary
-                    </h2>
-                    <ul class="summary-list">
-                        <li>
-                            <span class="summary-label">Highest</span>
-                            <span class="summary-figure"><i class="dot" id="sum-hi-dot"></i><span id="sum-hi-val">&ndash;</span></span>
-                            <span class="summary-place" id="sum-hi-name"></span>
-                        </li>
-                        <li>
-                            <span class="summary-label">Lowest</span>
-                            <span class="summary-figure"><i class="dot" id="sum-lo-dot"></i><span id="sum-lo-val">&ndash;</span></span>
-                            <span class="summary-place" id="sum-lo-name"></span>
-                        </li>
-                        <li>
-                            <span class="summary-label">County average</span>
-                            <span class="summary-figure"><span id="sum-avg-val">&ndash;</span></span>
-                        </li>
-                    </ul>
-                </section>
-            </aside>
-        </div>
+        <%# 03 · Geography: the map stays pinned while the steps move it
+            through the census years. %>
+        <section class="scrolly">
+            <div class="chapter-head">
+                <img class="spot" src="img/island.svg" alt="">
+                <h2 class="section-title">A changing landscape</h2>
+            </div>
+            <div class="scrolly-graphic">
+                <div class="timeline" id="timeline">
+                    <%# Follows the scroll steps; it shows the year, it isn't a control. %>
+                    <div class="timeline-track" id="timeline-track" aria-hidden="true">
+                        <span class="timeline-rail"></span>
+                        <span class="timeline-fill" id="timeline-fill"></span>
+                        <% abilityYears.forEach((year) => { %>
+                        <span class="timeline-stop" data-year="<%= year %>" style="left:<%= yearPos(year).toFixed(3) %>%"></span>
+                        <% }); %>
+                        <span class="timeline-handle" id="timeline-handle" style="left:<%= yearPos(defaultYear).toFixed(3) %>%">
+                            <span class="timeline-year" id="timeline-year"><%= defaultYear %></span>
+                        </span>
+                        <span class="timeline-axis" aria-hidden="true">
+                            <span style="left:0"><%= firstYear %></span>
+                            <% [1900, 1950, 2000].forEach((y) => { %>
+                            <span style="left:<%= yearPos(y).toFixed(3) %>%"><%= y %></span>
+                            <% }); %>
+                            <span style="left:100%"><%= lastYear %></span>
+                        </span>
+                    </div>
+                </div>
 
-        <p class="page-hint">
-            New here? Read <a href="about.html">about this project</a> or the
-            <a href="methodology.html">methodology and data notes</a>.
-        </p>
+                <h2 class="finding" id="finding" aria-live="polite"></h2>
+
+                <div class="map-wrap">
+                    <div id="map"></div>
+                </div>
+
+                <div id="legend" class="map-legend"></div>
+            </div>
+
+            <div class="scrolly-steps">
+                <div class="step" data-year="1851">
+                    <p>Here is that map in <strong>1851</strong>. The darker the green, the larger the share of people who said they could speak Irish.</p>
+                </div>
+                <div class="step" data-year="1851" data-county="GALWAY">
+                    <p>Irish was strongest along the Atlantic. <strong>Galway</strong>: 69.1%.</p>
+                </div>
+                <div class="step" data-year="1911" data-county="MAYO">
+                    <p>Sixty years later the west had faded. <strong>Mayo</strong> went from 65.8% to 46.1%.</p>
+                </div>
+                <div class="step" data-year="1926">
+                    <p>From 1926 to 1986 there are no county figures for <strong>Northern Ireland</strong>, so its six counties turn grey.</p>
+                </div>
+                <div class="step" data-year="1961" data-county="DUBLIN">
+                    <p>Meanwhile the east was catching up. <strong>Dublin</strong> went from 3.7% in 1911 to 21.1% in 1961.</p>
+                </div>
+                <div class="step" data-year="2022" data-county="WICKLOW">
+                    <p>By 2022, <strong>Wicklow</strong>, once at 0.1%, was at 39.0%. The two Irelands of 1851 had become one.</p>
+                </div>
+                <div class="step" data-year="2022">
+                    <p>Every census, from 1851 to 2022. Tap any county to pin its figure on the map.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="column section north-south">
+            <div class="chapter-head">
+                <img class="spot spot-wide" src="img/spot-two-jurisdictions.svg" alt="">
+                <h2 class="section-title">Two jurisdictions</h2>
+            </div>
+            <p class="ns-lead">
+                In the Republic, about <strong>4 in 10</strong> people say they can
+                speak Irish. In Northern Ireland, <strong>fewer than 1 in 10</strong>.
+            </p>
+            <%# Two ranges side by side, then every county ranked, in the map's
+                colours. Figures: latest census, 2022 in the Republic and 2021 in
+                Northern Ireland. %>
+            <div class="ns-compare" id="ns-compare"></div>
+            <div class="ns-bars" id="north-south" role="img"
+                aria-label="Bar chart of every county in the latest census: Republic counties from 48.8% (Galway) to 35.2% (Louth), Northern Ireland counties from 10.0% (Tyrone) to 4.1% (Down), with no county between 10% and 35%."></div>
+            <p class="chart-caption">
+                Latest census: 2022 in the Republic, 2021 in Northern Ireland, which
+                runs its own census. There are no county figures for Northern
+                Ireland from 1926 to 1986.
+            </p>
+        </section>
+
+        <%# 04 · Interpretation: 100 figures for 100 people, after The
+            Pudding's unit charts. Figures from the CSO's 2022 summary. %>
+        <section class="scrolly scrolly-people">
+            <div class="chapter-head">
+                <img class="spot" src="img/spot-speaker.svg" alt="">
+                <h2 class="section-title">What counts as speaking Irish?</h2>
+            </div>
+            <div class="scrolly-graphic">
+                <figure class="people-figure">
+                    <p class="people-readout" id="people-readout"></p>
+                    <div class="people" id="people" data-stage="1" role="img"
+                        aria-label="100 figures representing 100 people aged 3 and over in 2022"></div>
+                    <figcaption class="chart-caption">
+                        Each figure is about 1 in 100 people aged 3 and over in the Republic, 2022.
+                        Source: <a href="https://www.cso.ie/en/releasesandpublications/ep/p-cpsr/censusofpopulation2022-summaryresults/educationandirishlanguage/" target="_blank" rel="noopener">CSO, Census 2022 summary results</a>.
+                    </figcaption>
+                </figure>
+            </div>
+
+            <div class="scrolly-steps">
+                <div class="step" data-people="1">
+                    <p>Everything so far counts people who <em>said they could</em> speak Irish. In 2022 that was <strong>1,873,997 people</strong>: about <strong>40 in every 100</strong>.</p>
+                </div>
+                <div class="step" data-people="2">
+                    <p>But being able to isn&rsquo;t the same as using it. One in four of them, <strong>472,887 people</strong>, said they <strong>never</strong> speak it.</p>
+                </div>
+                <div class="step" data-people="3">
+                    <p>A third, <strong>623,961</strong>, speak it every day. Most of them are pupils, speaking it at school.</p>
+                </div>
+                <div class="step" data-people="4">
+                    <p>Outside the education system, <strong>71,968 people</strong> speak Irish every day. That is fewer than <strong>2 in every 100</strong>.</p>
+                    <p class="step-note">So the census measures ability, as reported by each household. The map shows where people say they can speak Irish, not where it is spoken.</p>
+                </div>
+            </div>
+        </section>
+
+        <%# 05 · Exploration: guess, then compare a county with the trend. %>
+        <section class="county-detail column section" id="county-detail">
+            <div class="chapter-head">
+                <img class="spot" src="img/spot-pin.svg" alt="">
+                <h2 class="section-title">Find your county</h2>
+            </div>
+            <p class="section-sub">
+                Pick a county, slide to your guess for <%= firstYear %>, then reveal
+                the answer and the county&rsquo;s whole history.
+            </p>
+            <div class="guess-form">
+                <label class="guess-field">
+                    <span>County</span>
+                    <select id="guess-county"></select>
+                </label>
+                <label class="guess-field guess-slider">
+                    <span>Your guess for <%= firstYear %>: <output id="guess-output">35%</output></span>
+                    <input type="range" id="guess-range" min="0" max="70" step="1" value="35">
+                </label>
+                <button type="button" class="button" id="guess-reveal">Reveal</button>
+            </div>
+            <%# Drawn empty from the start (your guess, a "?" for the answer and
+                blank axes), then filled in by the reveal. D3, in map.js. %>
+            <figure class="guess-card">
+                <div class="guess-chart" id="guess-chart"></div>
+                <p class="guess-reaction" id="guess-reaction" aria-live="polite"></p>
+            </figure>
+        </section>
+
+        <%# 06 · Conclusion: back to the opening question, with the two maps
+            side by side. %>
+        <section class="column section conclusion">
+            <div class="chapter-head">
+                <img class="spot" src="img/spot-harp.svg" alt="">
+                <h2 class="section-title">So, where did the Irish language go?</h2>
+            </div>
+            <p class="answer">
+                It didn't vanish. <strong>It spread out.</strong>
+            </p>
+            <%# Both maps are sketched in the browser with rough.js from the
+                county shapes, on the same colour scale as the main map. %>
+            <figure class="sketch-maps">
+                <div class="sketch-maps-row" id="sketch-maps" role="img"
+                    aria-label="Two sketched maps of Ireland. 1851: dark in the west, almost blank in the east. 2022: an even mid green across the Republic, pale in Northern Ireland."></div>
+                <figcaption class="sketch-key" id="sketch-key"></figcaption>
+            </figure>
+<%# The three takeaways as hand-drawn stat cards: then, now, and the
+                catch. They drop in one after another (map.js). %>
+            <ol class="findings">
+                <li class="finding-card">
+                    <span class="finding-tag">1851</span>
+                    <span class="finding-stat">69 points</span>
+                    <p>between <strong>Galway</strong> (69.1%) and <strong>Wicklow</strong> (0.1%). Irish was the language of the west.</p>
+                </li>
+                <li class="finding-card">
+                    <span class="finding-tag">2022</span>
+                    <span class="finding-stat">35&ndash;49%</span>
+                    <p>in every county of the Republic. The language had <strong>spread out</strong> evenly.</p>
+                </li>
+                <li class="finding-card is-catch">
+                    <span class="finding-tag">But</span>
+                    <span class="finding-stat">under 2%</span>
+                    <p>of people speak it <strong>daily outside school</strong>. Being able to speak Irish isn&rsquo;t the same as using it.</p>
+                </li>
+            </ol>
+            <p class="chart-caption">The figures are self-reported and the census questions changed over time, so read the long trend as a guide, not a precise measurement.</p>
+        </section>
+
+        <aside class="closing" lang="ga">
+            <p class="closing-line"><span id="closing-proverb">Tír gan teanga, tír gan anam.</span></p>
+            <p class="closing-gloss" lang="en">&ldquo;A country without a language is a country without a soul.&rdquo; Attributed to Patrick Pearse.</p>
+        </aside>
 
 <%- include("partials/footer") %>
     </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollToPlugin.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
+<%# RoughNotation: the hand-drawn highlight on the closing proverb. %>
+<script src="https://unpkg.com/rough-notation@0.5.1/lib/rough-notation.iife.js"></script>
 <script src="js/map.js"></script>
 <script src="js/nav.js"></script>
 

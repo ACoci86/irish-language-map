@@ -4,7 +4,7 @@
 
 // The map shows a fixed view of Ireland fitted to the counties, so all zoom
 // and pan interactions are disabled and the +/- control is removed. County
-// clicks still work.
+// hover and clicks still work.
 const map = L.map("map", {
   zoomControl: false,
   dragging: false,
@@ -17,24 +17,23 @@ const map = L.map("map", {
   attributionControl: false, // credited in the footer instead of on the map
 }).setView([53.4, -8.0], 7);
 
-/*L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution:
-    '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-}).addTo(map);*/
-
 // ─────────────────────────────────────────────
 // 2. STATE
 // ─────────────────────────────────────────────
 
 // allData holds every census year keyed by year -> { COUNTY: value }. We load
-// it once and slice out the selected year locally, so both the map and the
-// county panel read from a single in-memory source.
+// it once and slice out the selected year locally, so the map, the county
+// detail and the table all read from a single in-memory source.
 let allData = {};
 let currentYear;
-let selectedCounty = null;
-let selectedLayer = null;
+let years = [];
 let countyLayer;
+
+// pinnedCounty is set by a click and stays until clicked again; hoverCounty
+// follows the pointer over the map or the table and gets a lighter outline.
+let pinnedCounty = null;
+let hoverCounty = null;
+const layersByCounty = {};
 
 const NI_COUNTIES = new Set([
   "ANTRIM",
@@ -44,6 +43,20 @@ const NI_COUNTIES = new Set([
   "LONDONDERRY",
   "TYRONE",
 ]);
+
+const PROVINCES = {
+  Connacht: ["GALWAY", "LEITRIM", "MAYO", "ROSCOMMON", "SLIGO"],
+  Munster: ["CLARE", "CORK", "KERRY", "LIMERICK", "TIPPERARY", "WATERFORD"],
+  Ulster: [
+    "ANTRIM", "ARMAGH", "CAVAN", "DONEGAL", "DOWN",
+    "FERMANAGH", "LONDONDERRY", "MONAGHAN", "TYRONE",
+  ],
+};
+
+function provinceOf(county) {
+  const found = Object.keys(PROVINCES).find((p) => PROVINCES[p].includes(county));
+  return found || "Leinster";
+}
 
 // Northern Ireland runs its own census, so a couple of its years sit a year or
 // two off the Republic's. Those figures are shown under the nearest map year,
@@ -56,31 +69,52 @@ function displayName(county) {
   return DISPLAY_NAMES[county] || county;
 }
 
-// Outline used to mark the county whose card is open.
-const HIGHLIGHT_STYLE = { color: "#0b3d2c", weight: 3 };
+const INK = "#333634";
+const BG = "#f4f4f2";
+const GREEN = "#14774c";
+// The tricolour's orange, for the few things the reader should look at.
+const ORANGE = "#f0822e";
 
-// Google Material Icons (play_arrow / pause) as inline SVG.
-const PLAY_ICON =
-  '<svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
-const PAUSE_ICON =
-  '<svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+// Outlines for the pinned county and the one under the pointer.
+const PINNED_STYLE = { color: INK, weight: 3 };
+const HOVER_STYLE = { color: INK, weight: 1.5 };
 
-let playTimer = null;
 
-const yearSelect = document.getElementById("year-select");
-const playButton = document.getElementById("play-button");
-const panel = document.getElementById("county-panel");
-const panelBody = document.getElementById("county-panel-body");
-const panelClose = document.getElementById("county-panel-close");
 
-const insightEl = document.getElementById("insight-text");
-const sumHiVal = document.getElementById("sum-hi-val");
-const sumHiName = document.getElementById("sum-hi-name");
-const sumHiDot = document.getElementById("sum-hi-dot");
-const sumLoVal = document.getElementById("sum-lo-val");
-const sumLoName = document.getElementById("sum-lo-name");
-const sumLoDot = document.getElementById("sum-lo-dot");
-const sumAvgVal = document.getElementById("sum-avg-val");
+// GSAP drives the scrolling, counters and small entrances. Everything still
+// works without it (or with reduced motion), just without the animation.
+const hasGsap = typeof gsap !== "undefined";
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const animate = hasGsap && !reduceMotion;
+
+if (hasGsap && typeof ScrollToPlugin !== "undefined") {
+  gsap.registerPlugin(ScrollToPlugin);
+}
+
+// Counts an element's number from its last shown value to `to`.
+function tweenPercent(el, from, to) {
+  if (!animate || from == null || from === to) {
+    el.textContent = `${to.toFixed(1)}%`;
+    return;
+  }
+  const counter = { v: from };
+  gsap.to(counter, {
+    v: to,
+    duration: 0.5,
+    ease: "power2.out",
+    onUpdate: () => {
+      el.textContent = `${counter.v.toFixed(1)}%`;
+    },
+  });
+}
+
+const trackFill = document.getElementById("timeline-fill");
+const yearLabel = document.getElementById("timeline-year");
+const trackHandle = document.getElementById("timeline-handle");
+const stops = Array.from(document.querySelectorAll(".timeline-stop"));
+const findingEl = document.getElementById("finding");
+const opener = document.getElementById("opener");
+
 
 // "GALWAY" -> "Galway", "DERRY / LONDONDERRY" -> "Derry / Londonderry".
 function prettyName(county) {
@@ -106,6 +140,7 @@ async function loadAllData() {
   }
 
   allData = await response.json();
+  years = Object.keys(allData).sort((a, b) => Number(a) - Number(b));
 }
 
 // ─────────────────────────────────────────────
@@ -118,223 +153,447 @@ const SCALE_MAX = 70;
 // position to a power below 1 spreads the crowded low and middle range across
 // more of the ramp while the domain still spans the true maximum.
 const SCALE_EXPONENT = 0.6;
-const NO_DATA_COLOUR = "#cccccc";
+const NO_DATA_COLOUR = "#d3d4cf";
 
-// Continuous single-hue (green) sequential ramp, light -> dark.
+// Single-hue sequential ramp, pale -> deep green. Colours are interpolated
+// between these evenly spaced stops so lightness falls steadily with no jumps.
+const RAMP = ["#eef2dc", "#c6e3b5", "#86c98f", "#3fa46c", "#14774c", "#064530"];
+
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+const RAMP_RGB = RAMP.map(hexToRgb);
+
+function rampRgb(value) {
+  const ratio = Math.max(0, Math.min(1, value / SCALE_MAX));
+  const t = Math.pow(ratio, SCALE_EXPONENT) * (RAMP_RGB.length - 1);
+  const i = Math.min(Math.floor(t), RAMP_RGB.length - 2);
+  const f = t - i;
+  const [a, b] = [RAMP_RGB[i], RAMP_RGB[i + 1]];
+
+  return a.map((c, k) => Math.round(c + (b[k] - c) * f));
+}
+
 function getCountyColour(value) {
   if (value == null) return NO_DATA_COLOUR;
+  return `rgb(${rampRgb(value).join(",")})`;
+}
 
-  const ratio = Math.max(0, Math.min(1, value / SCALE_MAX));
-  const t = Math.pow(ratio, SCALE_EXPONENT);
+// Text colour that stays readable on top of a county's fill.
+function textOn(value) {
+  if (value == null) return INK;
+  const [r, g, b] = rampRgb(value);
+  return 0.299 * r + 0.587 * g + 0.114 * b < 150 ? "#ffffff" : INK;
+}
 
-  const hue = 152;
-  const saturation = 38 + t * 42; // 38% -> 80%
-  const lightness = 96 - t * 80; // 96% (near zero) -> 16% (darkest)
+// ─────────────────────────────────────────────
+// SKETCH STYLE: the charts are drawn with D3 and rough.js in ink and
+// hatching, like the maps.
+// ─────────────────────────────────────────────
 
-  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+// The frame shared by the D3 line charts (the story chart, the guess and a
+// county's history): pencil gridlines, census years and ink axes sketched
+// with rough.js. Drawn at the container's own width, so the text keeps its
+// size on a phone instead of shrinking with a viewBox. `top` leaves room
+// above the plot (the guess card puts its bars there).
+function lineFrame(el, { h, top = 28 }) {
+  const w = Math.max(280, el.clientWidth);
+  const narrow = w < 520;
+  const first = Number(years[0]);
+  const last = Number(years[years.length - 1]);
+  const x = d3.scaleLinear().domain([first, last]).range([34, w - (narrow ? 96 : 150)]);
+  const y = d3.scaleLinear().domain([0, SCALE_MAX]).range([h - 30, top + 14]);
+
+  el.querySelector(":scope > svg")?.remove();
+  const svg = d3.select(el).append("svg").attr("viewBox", `0 0 ${w} ${h}`).attr("class", "line-svg");
+
+  const grid = svg.append("g").attr("class", "ns-grid");
+  [0, 20, 40, 60].forEach((v) => {
+    grid.append("line").attr("x1", x(first)).attr("x2", x(last)).attr("y1", y(v)).attr("y2", y(v));
+    grid.append("text").attr("x", x(first) - 8).attr("y", y(v) + 4).attr("text-anchor", "end").text(v);
+  });
+  (narrow ? [1851, 1900, 1950, 2022] : [1851, 1900, 1950, 2000, 2022]).forEach((v) => {
+    grid.append("text").attr("x", x(v)).attr("y", h - 8).attr("text-anchor", "middle").text(v);
+  });
+  svg.append("text").attr("class", "line-axis-title").attr("x", 8).attr("y", top - 4).text("% able to speak Irish");
+
+  const axis = [[x(first), y(SCALE_MAX)], [x(first), y(0)], [x(last), y(0)]];
+  if (typeof rough !== "undefined") {
+    svg.node().appendChild(
+      rough.svg(svg.node()).linearPath(axis, { stroke: INK, strokeWidth: 1.8, roughness: 0.9, bowing: 0.5, seed: 11 }),
+    );
+  } else {
+    svg.append("path").attr("class", "line-axis").attr("d", `M${axis.join("L")}`);
+  }
+  return { svg, x, y, w, h, narrow, first, last };
+}
+
+// A census series as a smooth line; missing years (Northern Ireland's
+// 1926 to 1986) leave gaps.
+function linePath(view, values) {
+  return d3
+    .line()
+    .defined(([, v]) => v != null)
+    .x(([yr]) => view.x(Number(yr)))
+    .y(([, v]) => view.y(v))
+    .curve(d3.curveMonotoneX)(values);
+}
+
+// Draws a path in like a pen stroke, left to right. With no duration it
+// simply appears.
+function drawPath(path, delay, duration) {
+  path.interrupt("draw");
+  if (!duration) {
+    path.attr("opacity", 1).attr("stroke-dasharray", null).attr("stroke-dashoffset", null);
+    return;
+  }
+  const length = path.node().getTotalLength();
+  path
+    .attr("opacity", 1)
+    .attr("stroke-dasharray", `${length} ${length}`)
+    .attr("stroke-dashoffset", length)
+    .transition("draw")
+    .delay(delay)
+    .duration(duration)
+    .ease(d3.easeCubicInOut)
+    .attr("stroke-dashoffset", 0);
+}
+
+// Names at the right-hand ends of lines, nudged apart so they never overlap.
+// `labels` are [selection, last value] pairs.
+function placeEndLabels(view, labels) {
+  const placed = labels
+    .filter(([, v]) => v != null)
+    .map(([label, v]) => ({ label, y: view.y(v) + 5 }))
+    .sort((a, b) => a.y - b.y);
+  placed.forEach((p, i) => {
+    if (i && p.y - placed[i - 1].y < 18) p.y = placed[i - 1].y + 18;
+  });
+  placed.forEach((p) => p.label.attr("x", view.x(view.last) + 8).attr("y", p.y));
+}
+
+// A county's line and the Republic average, with their names at the ends;
+// used by the guess card and the county panel.
+function addHistoryLines(view) {
+  const g = view.svg.append("g");
+  return {
+    average: g.append("path").attr("class", "line is-average"),
+    county: g.append("path").attr("class", "line is-county"),
+    averageLabel: g.append("text").attr("class", "line-end is-average").text(view.narrow ? "average" : "Republic average"),
+    countyLabel: g.append("text").attr("class", "line-end is-county"),
+  };
+}
+
+function setHistory(view, lines, countyName) {
+  const lastYear = years[years.length - 1];
+  lines.average.attr("d", linePath(view, years.map((yr) => [yr, republicAverage(yr)])));
+  lines.county.attr("d", linePath(view, years.map((yr) => [yr, allData[yr][countyName]])));
+  // "Derry / Londonderry" is too long for a phone's margin.
+  const name = prettyName(countyName);
+  lines.countyLabel.text(view.narrow ? name.split(" / ")[0] : name);
+  placeEndLabels(view, [
+    [lines.countyLabel, allData[lastYear][countyName]],
+    [lines.averageLabel, republicAverage(lastYear)],
+  ]);
+}
+
+// An orange line sketched with rough.js that draws itself in: the site's
+// one animated mark, used under chapter headings and on the jurisdictions
+// chart. `nodes` are rough.js shape nodes; returns a function that plays them.
+function sketchDraw(nodes, { duration = 0.9, delay = 0 } = {}) {
+  const paths = nodes.flatMap((node) => [...node.querySelectorAll("path")]);
+  paths.forEach((path) => {
+    const length = path.getTotalLength();
+    path.style.strokeDasharray = length;
+    path.style.strokeDashoffset = length;
+  });
+  return () =>
+    paths.forEach((path, i) => {
+      if (!animate) {
+        path.style.strokeDashoffset = 0;
+        return;
+      }
+      gsap.to(path, { strokeDashoffset: 0, duration, delay: delay + i * 0.08, ease: "power2.out" });
+    });
+}
+
+// Plays `play` once, the first time `el` scrolls into view.
+function onceInView(el, play, threshold = 0.4) {
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (!entries[0].isIntersecting) return;
+      observer.disconnect();
+      play();
+    },
+    { threshold },
+  );
+  observer.observe(el);
+}
+
+// The closing proverb gets an orange marker highlight, swept on by hand
+// (RoughNotation) when it scrolls into view.
+function buildClosing() {
+  const el = document.getElementById("closing-proverb");
+  if (!el || typeof RoughNotation === "undefined") return;
+  const mark = RoughNotation.annotate(el, {
+    type: "highlight",
+    color: "#f8cfa6",
+    multiline: true,
+    iterations: 2,
+    animate,
+    animationDuration: 1200,
+  });
+  onceInView(el, () => mark.show(), 0.6);
+}
+
+// The conclusion's three cards drop in one after another, settling at their
+// slight tilt.
+function buildFindings() {
+  const cards = document.querySelectorAll(".finding-card");
+  if (!animate || !cards.length) return;
+  gsap.set(cards, { opacity: 0, y: 24 });
+  onceInView(document.querySelector(".findings"), () => {
+    gsap.to(cards, { opacity: 1, y: 0, duration: 0.6, ease: "back.out(1.6)", stagger: 0.18 });
+  }, 0.3);
+}
+
+// An orange pen underline under each chapter heading, drawn across when the
+// heading first comes into view. It's a background on the heading's text
+// (style.css), so it follows the words: one stroke per line, as long as the
+// line, however the heading wraps.
+function buildHeadingUnderlines() {
+  document.querySelectorAll(".chapter-head .section-title").forEach((title) => {
+    title.innerHTML = `<span class="title-ink">${title.innerHTML}</span>`;
+    if (!animate) {
+      title.classList.add("is-drawn");
+      return;
+    }
+    onceInView(title, () => title.classList.add("is-drawn"), 0.5);
+  });
+}
+
+// Diagonal hatch patterns for the map counties: a pale wash of the county's
+// colour with pen strokes over it, like the sketched maps. One pattern per
+// county and map, recoloured in place when the year changes.
+const hatchDefs = document.getElementById("hatches");
+
+function hatchFill(id, colour) {
+  let pattern = document.getElementById(id);
+  if (!pattern) {
+    hatchDefs.insertAdjacentHTML(
+      "beforeend",
+      `<pattern id="${id}" patternUnits="userSpaceOnUse" width="4.5" height="4.5" patternTransform="rotate(-41)">` +
+        `<rect width="4.5" height="4.5" fill-opacity="0.4" />` +
+        `<line x1="2.25" y1="0" x2="2.25" y2="4.5" stroke-width="2.2" />` +
+        `</pattern>`,
+    );
+    pattern = document.getElementById(id);
+  }
+  pattern.firstChild.setAttribute("fill", colour);
+  pattern.lastChild.setAttribute("stroke", colour);
+  return `url(#${id})`;
 }
 
 function styleCounty(feature) {
   const countyName = feature.properties.COUNTY;
   const value = currentYearData()[countyName];
 
+  // Thin ink borders and hatched fills, as on the sketched maps.
   return {
-    color: "#ffffff",
-    weight: 1,
-    fillColor: getCountyColour(value),
+    color: INK,
+    weight: 0.7,
+    opacity: 0.75,
+    fillColor: hatchFill(`hatch-${countyName}`, getCountyColour(value)),
     fillOpacity: 1,
   };
 }
 
+const canHover = window.matchMedia("(hover: hover)").matches;
+
 function addCountyInteraction(feature, layer) {
   const countyName = feature.properties.COUNTY;
+  layersByCounty[countyName] = layer;
 
-  layer.bindTooltip(
-    () => {
-      const value = currentYearData()[countyName];
-      const valueText = value === undefined ? "No data" : `${value}%`;
+  // Touch screens have no hover, and on an iPhone anything that changes on
+  // mouseover (the outline, the tooltip) turns the first tap into a "hover"
+  // and swallows the click. So there a tap only pins, and the pinned label
+  // shows the figure instead of a tooltip.
+  if (canHover) {
+    layer.bindTooltip(
+      () => {
+        const value = currentYearData()[countyName];
+        const valueText = value == null ? "No data" : `${value.toFixed(1)}%`;
+        return `<strong>${prettyName(countyName)}</strong>${valueText}`;
+      },
+      { sticky: true, direction: "top", offset: [0, -10], className: "county-tip" },
+    );
+    layer.on("mouseover", () => setHover(countyName));
+    layer.on("mouseout", () => setHover(null));
+  }
+  layer.on("click", () => togglePin(countyName));
+}
 
-      return `<strong>${displayName(countyName)}</strong><br>${valueText}`;
-    },
-    {
-      sticky: true,
-    },
-  );
+// Redraws the county outlines so only the pinned and hovered counties stand
+// out, with both brought above their neighbours.
+function refreshOutlines() {
+  if (!countyLayer) return;
 
-  layer.on("click", () => {
-    showCountyPanel(countyName);
-    highlightCounty(layer);
+  countyLayer.setStyle(styleCounty);
+
+  // Pinned last, so its heavier outline sits on top of a hovered neighbour.
+  [hoverCounty, pinnedCounty].forEach((county) => {
+    const layer = county && layersByCounty[county];
+    if (layer) {
+      layer.setStyle(county === pinnedCounty ? PINNED_STYLE : HOVER_STYLE);
+      layer.bringToFront();
+    }
   });
 }
 
-// Marks the given county layer with a bold outline and clears any previous one.
-function highlightCounty(layer) {
-  clearHighlight();
-  selectedLayer = layer;
-  layer.setStyle(HIGHLIGHT_STYLE);
-  layer.bringToFront();
-}
+// Labels drawn on the map for the year's highest and lowest counties and for
+// the pinned one, so the extremes read without hovering.
+const labelLayer = L.layerGroup().addTo(map);
 
-function clearHighlight() {
-  if (selectedLayer && countyLayer) {
-    countyLayer.resetStyle(selectedLayer);
-    selectedLayer = null;
-  }
-}
+// Where to anchor a county's label: the middle of its largest polygon, so
+// offshore islands don't pull it out to sea.
+function labelPoint(layer) {
+  const latlngs = layer.getLatLngs();
+  // A Polygon is [outer ring, ...holes]; a MultiPolygon is a list of those.
+  const polygons = Array.isArray(latlngs[0][0]) ? latlngs : [latlngs];
 
-// ─────────────────────────────────────────────
-// 4b. COUNTY PANEL
-// ─────────────────────────────────────────────
-
-// Sorted list of census years, e.g. ["1851", "1861", ...].
-function sortedYears() {
-  return Object.keys(allData).sort((a, b) => Number(a) - Number(b));
-}
-
-// Builds an inline SVG sparkline of one county across every census year.
-// Y is scaled to the same 0..SCALE_MAX domain as the map, so the line's
-// height means the same thing as a county's colour. The selected year's
-// point is emphasised.
-function buildSparkline(countyName) {
-  const years = sortedYears();
-  const w = 244;
-  const h = 96;
-  const padX = 6;
-  const padTop = 8;
-  const padBottom = 18;
-
-  const x = (i) => padX + (i * (w - 2 * padX)) / (years.length - 1);
-  const y = (value) =>
-    h - padBottom - (Math.min(value, SCALE_MAX) / SCALE_MAX) * (h - padTop - padBottom);
-
-  const points = years
-    .map((year, i) => ({ year, i, value: allData[year][countyName] }))
-    .filter((p) => p.value !== undefined);
-
-  // Break the line wherever a county has no figure for one or more censuses,
-  // so the long Northern Ireland gap (1911 to 1991) isn't drawn as a
-  // continuous trend.
-  const segments = [];
-  points.forEach((p) => {
-    const last = segments[segments.length - 1];
-    if (last && p.i === last[last.length - 1].i + 1) {
-      last.push(p);
-    } else {
-      segments.push([p]);
+  let best = null;
+  let bestArea = -1;
+  polygons.forEach((polygon) => {
+    const b = L.latLngBounds(polygon[0]);
+    const area = (b.getNorth() - b.getSouth()) * (b.getEast() - b.getWest());
+    if (area > bestArea) {
+      bestArea = area;
+      best = b;
     }
   });
 
-  const lines = segments
-    .filter((segment) => segment.length > 1)
-    .map(
-      (segment) =>
-        `<polyline points="${segment
-          .map((p) => `${x(p.i)},${y(p.value)}`)
-          .join(" ")}" fill="none" stroke="#176b4d" stroke-width="2" ` +
-        `stroke-linejoin="round" stroke-linecap="round" />`,
-    )
-    .join("");
-
-  const dots = points
-    .map((p) => {
-      const isCurrent = p.year === currentYear;
-      const r = isCurrent ? 4 : 2.5;
-      const fill = isCurrent ? "#176b4d" : "#70ad8b";
-      return (
-        `<circle cx="${x(p.i)}" cy="${y(p.value)}" r="${r}" fill="${fill}">` +
-        `<title>${p.year}: ${p.value}%</title></circle>`
-      );
-    })
-    .join("");
-
-  const baselineY = h - padBottom;
-  const firstYear = years[0];
-  const lastYear = years[years.length - 1];
-
-  return (
-    `<svg viewBox="0 0 ${w} ${h}" role="img" ` +
-    `aria-label="${displayName(countyName)} Irish ability from ${firstYear} to ${lastYear}">` +
-    `<line x1="${padX}" y1="${baselineY}" x2="${w - padX}" y2="${baselineY}" ` +
-    `stroke="#d8ded9" stroke-width="1" />` +
-    lines +
-    dots +
-    `<text x="${padX}" y="${h - 4}" font-size="10" fill="#6b756f">${firstYear}</text>` +
-    `<text x="${w - padX}" y="${h - 4}" font-size="10" fill="#6b756f" ` +
-    `text-anchor="end">${lastYear}</text>` +
-    `</svg>`
-  );
+  return best.getCenter();
 }
 
-function renderPanel(countyName) {
-  const value = currentYearData()[countyName];
-  const currentText =
-    value === undefined
-      ? `No data <span>in ${currentYear}</span>`
-      : `${value}%<span> in ${currentYear}</span>`;
+let previousLabels = new Set();
 
-  // Flag when a Northern Ireland figure comes from a differently-dated census.
-  const niYear = NI_COUNTIES.has(countyName) ? NI_CENSUS_YEAR[currentYear] : null;
-  const niNote =
-    niYear && value !== undefined
-      ? `<p class="panel-note">Northern Ireland figure is from the ${niYear} census.</p>`
-      : "";
+function updateLabels() {
+  labelLayer.clearLayers();
+  if (!countyLayer) return;
 
-  panelBody.innerHTML =
-    `<h2>${displayName(countyName)}</h2>` +
-    `<p class="panel-year">Percentage able to speak Irish</p>` +
-    `<p class="panel-current">${currentText}</p>` +
-    niNote +
-    `<p class="panel-trend-label">Trend, ${sortedYears()[0]} to ${
-      sortedYears()[sortedYears().length - 1]
-    }</p>` +
-    buildSparkline(countyName);
-}
+  const entries = Object.entries(currentYearData())
+    .filter(([, v]) => v != null)
+    .sort((a, b) => b[1] - a[1]);
 
-function showCountyPanel(countyName) {
-  selectedCounty = countyName;
-  renderPanel(countyName);
-  panel.hidden = false;
-
-  // When stacked (narrow screens) the panel sits below the map, so bring it
-  // into view on tap.
-  if (window.matchMedia("(max-width: 900px)").matches) {
-    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Handwritten tags for the year's extremes, then the pinned county.
+  const labelled = new Set();
+  const notes = {};
+  if (entries.length) {
+    labelled.add(entries[0][0]);
+    labelled.add(entries[entries.length - 1][0]);
+    notes[entries[entries.length - 1][0]] = "fewest";
+    notes[entries[0][0]] = "most";
   }
+  if (pinnedCounty) labelled.add(pinnedCounty);
+  const markers = [];
+
+  labelled.forEach((county) => {
+    const layer = county && layersByCounty[county];
+    if (!layer) return;
+
+    const value = currentYearData()[county];
+    const valueText = value == null ? "no data" : `${value.toFixed(1)}%`;
+
+    const marker = L.marker(labelPoint(layer), {
+      interactive: false,
+      keyboard: false,
+      icon: L.divIcon({
+        // Dark text with a light halo on pale counties, the reverse on dark.
+        className: textOn(value) === INK ? "map-label on-light" : "map-label",
+        iconSize: null,
+        html:
+          `<span><span class="label-inner">` +
+          (notes[county] ? `<i class="label-note">${notes[county]}</i>` : "") +
+          `${prettyName(county)}` +
+          `<b>${valueText}</b></span></span>`,
+      }),
+    }).addTo(labelLayer);
+    markers.push(marker);
+
+    // Only counties that just gained a label fade in, so playback stays calm.
+    if (animate && !previousLabels.has(county)) {
+      gsap.from(marker.getElement().querySelector(".label-inner"), {
+        opacity: 0,
+        duration: 0.35,
+        ease: "power1.out",
+      });
+    }
+  });
+
+  // Neighbouring labels (Dublin beside Wicklow, say) would overlap: each
+  // one that touches an earlier label moves up or down until it's clear.
+  const placed = [];
+  markers.forEach((marker) => {
+    const label = marker.getElement().firstElementChild;
+    let box = label.getBoundingClientRect();
+    placed.forEach((other) => {
+      const clear =
+        box.right < other.left || box.left > other.right || box.bottom < other.top || box.top > other.bottom;
+      if (clear) return;
+      const above = box.top + box.height / 2 < other.top + other.height / 2;
+      const shift = above ? other.top - box.bottom - 4 : other.bottom - box.top + 4;
+      label.style.top = `${(parseFloat(label.style.top) || 0) + shift}px`;
+      box = label.getBoundingClientRect();
+    });
+    placed.push(box);
+  });
+
+  previousLabels = labelled;
 }
 
-function hideCountyPanel() {
-  selectedCounty = null;
-  panel.hidden = true;
-  clearHighlight();
+function setHover(countyName) {
+  hoverCounty = countyName;
+  refreshOutlines();
 }
 
-// Renders the legend as a horizontal gradient bar matching the map's ramp.
+function togglePin(countyName) {
+  pinnedCounty = pinnedCounty === countyName ? null : countyName;
+  refreshOutlines();
+  updateLabels();
+}
+
+// Renders the legend as a titled gradient bar matching the map's ramp, plus
+// a swatch for counties with no data.
 function buildLegend() {
   const legend = document.getElementById("legend");
 
-  const stops = [];
+  const gradientStops = [];
   for (let p = 0; p <= 100; p += 5) {
-    stops.push(`${getCountyColour((p / 100) * SCALE_MAX)} ${p}%`);
+    gradientStops.push(`${getCountyColour((p / 100) * SCALE_MAX)} ${p}%`);
   }
-  const gradient = `linear-gradient(to right, ${stops.join(", ")})`;
+  const gradient = `linear-gradient(to right, ${gradientStops.join(", ")})`;
 
-  const ticks = [0, 20, 40, 60, 70]
+  const ticks = [0, 10, 20, 40, 70]
     .map(
       (v) =>
-        `<span class="tick" style="left:${(v / SCALE_MAX) * 100}%">${v}</span>`,
+        `<span class="tick" style="left:${(v / SCALE_MAX) * 100}%">${v}%</span>`,
     )
     .join("");
 
   legend.innerHTML =
-    `<span class="legend-head">% able to speak Irish</span>` +
+    `<span class="legend-title">Share able to speak Irish</span>` +
     `<span class="legend-scale">` +
-    `<span class="legend-bar" style="background:${gradient}"></span>` +
+    `<span class="legend-bar hatched" style="background:${gradient}"></span>` +
     `<span class="legend-ticks">${ticks}</span>` +
     `</span>` +
-    `<span class="legend-nodata"><i></i> No data</span>`;
+    `<span class="legend-nodata"><i class="hatched"></i>No data</span>`;
 }
 
-// Updates the year-level Insights, Summary and Data notes for the current year.
+let lastFindingValue = null;
+
+// Updates the headline sentence above the map and the paragraph below it.
 function updateContext() {
   const year = currentYear;
 
@@ -343,35 +602,57 @@ function updateContext() {
   );
 
   if (!entries.length) {
-    insightEl.textContent = `No county data is available for ${year}.`;
+    findingEl.textContent = `No county data is available for ${year}.`;
     return;
   }
 
   entries.sort((a, b) => b[1] - a[1]);
   const [hiName, hiVal] = entries[0];
-  const [loName, loVal] = entries[entries.length - 1];
-  const avg = entries.reduce((sum, [, v]) => sum + v, 0) / entries.length;
 
-  insightEl.textContent =
-    `In ${year}, reported ability was highest in ${prettyName(hiName)} ` +
-    `(${hiVal}%) and lowest in ${prettyName(loName)} (${loVal}%). ` +
-    `Across the ${entries.length} counties with data, the average was ` +
-    `${avg.toFixed(1)}%.`;
+  // The sentence is built once and then only its parts change, so the
+  // counting number keeps its element between years.
+  if (!document.getElementById("finding-county")) {
+    findingEl.innerHTML =
+      `In <strong id="finding-year"></strong>, <strong class="hi" id="finding-county"></strong> ` +
+      `had the most Irish speakers: <strong class="hi" id="finding-value"></strong>.`;
+  }
+  document.getElementById("finding-year").textContent = year;
+  tweenPercent(document.getElementById("finding-value"), lastFindingValue, hiVal);
+  lastFindingValue = hiVal;
 
-  sumHiVal.textContent = `${hiVal}%`;
-  sumHiName.textContent = prettyName(hiName);
-  sumHiDot.style.background = getCountyColour(hiVal);
-
-  sumLoVal.textContent = `${loVal}%`;
-  sumLoName.textContent = prettyName(loName);
-  sumLoDot.style.background = getCountyColour(loVal);
-
-  sumAvgVal.textContent = `${avg.toFixed(1)}%`;
+  document.getElementById("finding-county").textContent = prettyName(hiName);
 }
 
 // ─────────────────────────────────────────────
 // 5. RENDERING
 // ─────────────────────────────────────────────
+
+let countyGeojson = null;
+
+// A gentle, repeatable wobble for the county outlines, so they read as drawn
+// by hand. It depends only on the point, so neighbouring counties move their
+// shared borders together and no gaps open. Baked into the shapes once, it
+// costs nothing when they move, unlike an SVG filter, which a phone has to
+// redraw on every frame.
+function wobble([lon, lat]) {
+  const a = 0.018;
+  return [
+    lon + a * (Math.sin(lat * 23 + lon * 7) + 0.5 * Math.sin(lat * 51 - lon * 37)),
+    lat + a * 0.6 * (Math.sin(lon * 19 - lat * 11) + 0.5 * Math.sin(lon * 43 + lat * 29)),
+  ];
+}
+
+function wobbleGeojson(geojson) {
+  const rings = (geometry) =>
+    geometry.type === "Polygon" ? geometry.coordinates : geometry.coordinates.flat();
+  geojson.features.forEach((feature) => {
+    rings(feature.geometry).forEach((ring) => {
+      ring.forEach((point, i) => {
+        ring[i] = wobble(point);
+      });
+    });
+  });
+}
 
 // Expects allData to already be loaded and currentYear to be set.
 async function loadCountyBoundaries() {
@@ -382,99 +663,1127 @@ async function loadCountyBoundaries() {
   }
 
   const geojson = await response.json();
+  wobbleGeojson(geojson);
+  countyGeojson = geojson;
 
   countyLayer = L.geoJSON(geojson, {
     style: styleCounty,
     onEachFeature: addCountyInteraction,
   }).addTo(map);
 
-  map.fitBounds(countyLayer.getBounds(), { padding: [12, 12] });
+  fitIsland();
 }
+
+function fitIsland() {
+  map.invalidateSize();
+  map.fitBounds(countyLayer.getBounds(), { padding: [8, 8] });
+}
+
+// The map box changes size with the layout, so refit the island to it.
+window.addEventListener("resize", () => {
+  if (countyLayer) fitIsland();
+  // The sketches scale with their viewBox; the D3 charts are drawn at their
+  // width, so they're redrawn (without replaying their animations). Phones
+  // fire resize as the address bar hides, so only a real width change counts.
+  if (storyView && storyChart.clientWidth !== storyView.w) buildStoryChart();
+  if (guessView && guessChart.clientWidth !== guessView.w) buildGuessChart();
+  if (nsView && nsView.el.clientWidth !== nsView.w) drawNorthSouthBars(nsView.groups, nsView.latest);
+});
 
 // ─────────────────────────────────────────────
 // 6. EVENTS
 // ─────────────────────────────────────────────
 
-// Applies whatever year is currently in the selector to the map and any open
-// panel. Used by the selector, and by playback below.
-function applyYear() {
-  currentYear = yearSelect.value;
-  countyLayer.setStyle(styleCounty);
+// Moves the whole page to the given census year. Used by the map's scroll
+// steps.
+function setYear(year) {
+  currentYear = year;
+  yearLabel.textContent = year;
 
-  // setStyle repaints every county, so restore the selected outline on top.
-  if (selectedLayer) {
-    selectedLayer.setStyle(HIGHLIGHT_STYLE);
-    selectedLayer.bringToFront();
-  }
+  stops.forEach((stop) => {
+    const isCurrent = stop.dataset.year === year;
+    stop.classList.toggle("is-current", isCurrent);
+    if (!isCurrent) return;
 
-  // Keep an open panel in sync with the newly selected year.
-  if (selectedCounty) {
-    renderPanel(selectedCounty);
-  }
-
-  updateContext();
-}
-
-function stopPlayback() {
-  if (playTimer) {
-    clearInterval(playTimer);
-    playTimer = null;
-  }
-  playButton.innerHTML = `${PLAY_ICON} Play animation`;
-  playButton.setAttribute("aria-pressed", "false");
-}
-
-// Animates from the first census year through to the latest, one step at a
-// time, then stops on the last year.
-function startPlayback() {
-  const years = sortedYears();
-
-  yearSelect.value = years[0];
-  applyYear();
-
-  playButton.innerHTML = `${PAUSE_ICON} Pause animation`;
-  playButton.setAttribute("aria-pressed", "true");
-
-  playTimer = setInterval(() => {
-    const current = sortedYears();
-    const nextIndex = current.indexOf(yearSelect.value) + 1;
-
-    if (nextIndex >= current.length) {
-      stopPlayback();
-      return;
+    // The fill and the handle follow the selected census.
+    const pct = parseFloat(stop.style.left);
+    if (animate) {
+      const tween = { duration: 0.35, ease: "power2.out" };
+      gsap.to(trackFill, { width: `${pct}%`, ...tween });
+      gsap.to(trackHandle, { left: `${pct}%`, ...tween });
+    } else {
+      trackFill.style.width = `${pct}%`;
+      trackHandle.style.left = `${pct}%`;
     }
+  });
 
-    yearSelect.value = current[nextIndex];
-    applyYear();
-  }, 900);
+  refreshOutlines();
+  updateContext();
+  updateLabels();
+
+  // Keep an open tooltip in step with the new year.
+  if (hoverCounty && layersByCounty[hoverCounty].isTooltipOpen()) {
+    layersByCounty[hoverCounty].getTooltip().update();
+  }
 }
 
-yearSelect.addEventListener("change", () => {
-  // A manual year change interrupts playback.
-  stopPlayback();
-  applyYear();
+// ─────────────────────────────────────────────
+// 6b. SCROLL STEPS
+// ─────────────────────────────────────────────
+
+// Scroll steps, after the sticky-graphic stories on The Pudding: as each
+// step reaches the trigger line it updates its graphic. Map steps (data-year)
+// move the map to their census and pin their county, falling back to the
+// reader's own county from the guess; chart steps (data-story) switch the
+// story chart to their stage.
+const storySteps = Array.from(document.querySelectorAll(".step"));
+
+// The county the reader picked in the guess, if they made one.
+let readerCounty = null;
+
+// Phones: a fixed caption box at the bottom of each pinned graphic shows the
+// active step's text, crossfading as the reader scrolls, so no card slides
+// across the graphic it describes. The steps stay in the page, invisible, as
+// the scroll triggers and for screen readers.
+const phoneLayout = window.matchMedia("(max-width: 900px)");
+
+document.querySelectorAll(".scrolly-graphic, .opener-graphic").forEach((graphic) => {
+  const caption = document.createElement("div");
+  caption.className = "step-caption";
+  caption.setAttribute("aria-hidden", "true");
+  graphic.appendChild(caption);
 });
 
-playButton.addEventListener("click", () => {
-  if (playTimer) {
-    stopPlayback();
-  } else {
-    startPlayback();
+function showCaption(step) {
+  const host = step.closest(".scrolly, .opener");
+  const caption = host && host.querySelector(".step-caption");
+  if (!caption || caption.step === step) return;
+  caption.step = step;
+  const html = step.classList.contains("opener-spacer") ? "" : step.innerHTML;
+  if (!animate || !phoneLayout.matches) {
+    caption.innerHTML = html;
+    return;
   }
+  gsap.killTweensOf(caption);
+  gsap.to(caption, {
+    opacity: 0,
+    y: 8,
+    duration: 0.15,
+    ease: "power1.in",
+    onComplete: () => {
+      caption.innerHTML = html;
+      gsap.to(caption, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" });
+    },
+  });
+}
+
+const stepObserver = new IntersectionObserver(
+  (entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting || !countyLayer) return;
+      const step = entry.target;
+      const group = step.closest(".scrolly-steps, .opener-steps");
+      group
+        .querySelectorAll(".step")
+        .forEach((other) => other.classList.toggle("is-active", other === step));
+      showCaption(step);
+
+      if (step.dataset.opener) {
+        opener.dataset.stage = step.dataset.opener;
+        setOpenerStage(Number(step.dataset.opener));
+        return;
+      }
+      if (step.dataset.people) {
+        setPeopleStage(Number(step.dataset.people));
+        return;
+      }
+      if (step.dataset.story) {
+        setStoryStep(Number(step.dataset.story));
+        return;
+      }
+      pinnedCounty = step.dataset.county || readerCounty;
+      setYear(step.dataset.year);
+    });
+  },
+  // The trigger band: a fifth of the screen around the middle on desktop,
+  // so a fast flick can't skip a step; lower on phones, where the graphic
+  // fills the top of the screen and the steps rest below it. The gaps
+  // between steps (45svh) keep two from being in the band at once.
+  window.matchMedia("(max-width: 900px)").matches
+    ? { rootMargin: "-68% 0px -14% 0px" }
+    : { rootMargin: "-40% 0px -40% 0px" },
+);
+
+storySteps.forEach((step) => stepObserver.observe(step));
+
+// ─────────────────────────────────────────────
+// 6c. THE GUESS
+// ─────────────────────────────────────────────
+
+// The reader picks a county and guesses its 1851 share before seeing any
+// data (after the NYT's "You Draw It"). The card is drawn empty from the
+// start: their guess as a bar and a dot, a "?" for the answer and blank axes.
+// Revealing grows the real bar, then draws the county's line across every
+// census. Their county then stays pinned on the map.
+const guessCounty = document.getElementById("guess-county");
+const guessRange = document.getElementById("guess-range");
+const guessOutput = document.getElementById("guess-output");
+const guessChart = document.getElementById("guess-chart");
+const guessReaction = document.getElementById("guess-reaction");
+
+// The county whose answer is showing, or null while the card is empty.
+let revealedCounty = null;
+// The drawn chart: its scales and the pieces the reveal animates.
+let guessView = null;
+
+function buildGuess() {
+  guessCounty.innerHTML = Object.keys(layersByCounty)
+    .sort((a, b) => prettyName(a).localeCompare(prettyName(b)))
+    .map((county) => `<option value="${county}"${county === "DUBLIN" ? " selected" : ""}>${prettyName(county)}</option>`)
+    .join("");
+  buildGuessChart();
+}
+
+// Draws the card at its container's width, so the text stays readable on a
+// phone. Called again on resize; a revealed answer is redrawn without
+// replaying the animation.
+function buildGuessChart() {
+  if (typeof d3 === "undefined") return;
+  const narrow = guessChart.clientWidth < 520;
+  const view = lineFrame(guessChart, { h: narrow ? 400 : 440, top: 132 });
+  const { svg, x, y, w, first } = view;
+  svg.classed("guess-svg", true);
+  const labelW = narrow ? 96 : 140;
+  const valueW = 58;
+  const barH = 18;
+  const bx = d3.scaleLinear().domain([0, SCALE_MAX]).range([labelW, w - valueW]);
+
+  // Two bars: the guess, and the answer as an empty dashed box with a "?".
+  const bar = (rowY, cls) => {
+    const g = svg.append("g").attr("class", `guess-row ${cls}`).attr("transform", `translate(0, ${rowY})`);
+    g.append("text").attr("class", "guess-label").attr("y", barH * 0.75);
+    g.append("line")
+      .attr("class", "ns-guide")
+      .attr("x1", bx(0)).attr("x2", bx(SCALE_MAX))
+      .attr("y1", barH / 2).attr("y2", barH / 2);
+    g.append("rect").attr("class", "guess-fill").attr("x", bx(0)).attr("height", barH).attr("width", 0);
+    g.append("text").attr("class", "guess-value").attr("x", w).attr("text-anchor", "end").attr("y", barH * 0.75);
+    return g;
+  };
+  const guessRow = bar(14, "is-guess");
+  const realRow = bar(58, "is-real");
+  guessRow.select(".guess-label").text("Your guess");
+  guessRow.select(".guess-fill").attr("fill", hatchFill("ghatch-guess", ORANGE));
+  realRow
+    .insert("rect", ".guess-fill")
+    .attr("class", "guess-empty")
+    .attr("x", bx(0)).attr("width", bx(SCALE_MAX) - bx(0)).attr("height", barH);
+  realRow.select(".guess-fill").attr("fill", hatchFill("ghatch-real", GREEN));
+  realRow.select(".guess-value").text("?");
+
+  // Shown while there's no answer yet.
+  const mid = (x(first) + x(view.last)) / 2;
+  const empty = svg.append("g").attr("class", "guess-placeholder");
+  empty.append("text").attr("class", "guess-q").attr("x", mid).attr("y", y(SCALE_MAX * 0.5)).attr("text-anchor", "middle").text("?");
+  empty.append("text")
+    .attr("class", "guess-hint")
+    .attr("x", mid).attr("y", y(SCALE_MAX * 0.5) + 30)
+    .attr("text-anchor", "middle").text("Reveal to draw its history");
+
+  const lines = addHistoryLines(view);
+  const realDot = svg.append("circle").attr("class", "guess-dot is-real").attr("r", 6).attr("cx", x(first));
+
+  // The guess on the chart: an orange dot at 1851 with a note.
+  const guessDot = svg.append("g").attr("class", "guess-dot-group");
+  guessDot.append("circle").attr("class", "guess-dot is-guess").attr("r", 7).attr("cx", x(first));
+  guessDot.append("text").attr("class", "guess-note").attr("x", x(first) + 14).text("your guess");
+
+  guessView = { ...view, bx, guessRow, realRow, empty, lines, realDot, guessDot };
+  setGuessLabel();
+  setGuessValue();
+  [lines.average, lines.county, lines.averageLabel, lines.countyLabel, realDot].forEach((el) => el.attr("opacity", 0));
+  if (revealedCounty) revealGuess(false);
+}
+
+function setGuessLabel() {
+  if (!guessView) return;
+  guessView.realRow.select(".guess-label").text(`${prettyName(guessCounty.value)}, ${years[0]}`);
+}
+
+// Follows the slider: no transition, so the bar and dot track the thumb.
+function setGuessValue() {
+  if (!guessView) return;
+  const { bx, y, guessRow, guessDot } = guessView;
+  const guess = Number(guessRange.value);
+  guessRow.select(".guess-fill").attr("width", bx(guess) - bx(0));
+  guessRow.select(".guess-value").text(`${guess}%`);
+  guessDot.select("circle").attr("cy", y(guess));
+  guessDot.select("text").attr("y", y(guess) + 5);
+}
+
+// The reveal, in order: the "?" fades, the real bar grows as its number
+// counts up, the reaction appears, then the average and the county's line
+// draw across every census. `play` false shows the end state at once.
+function revealGuess(play = true) {
+  if (!guessView) return;
+  const countyName = guessCounty.value;
+  const guess = Number(guessRange.value);
+  const actual = allData[years[0]][countyName];
+  const { bx, y, realRow, empty, lines, realDot } = guessView;
+  const t = play && animate ? 1 : 0;
+
+  empty.transition("reveal").duration(300 * t).attr("opacity", 0);
+
+  realRow.select(".guess-fill")
+    .transition("reveal").delay(200 * t).duration(1100 * t).ease(d3.easeCubicInOut)
+    .attr("width", bx(actual) - bx(0));
+  realRow.select(".guess-value")
+    .transition("reveal").delay(200 * t).duration(1100 * t).ease(d3.easeCubicInOut)
+    .tween("text", function () {
+      const count = d3.interpolateNumber(0, actual);
+      return (k) => { this.textContent = `${count(k).toFixed(1)}%`; };
+    });
+
+  const off = Math.abs(guess - actual);
+  const reaction = off <= 5 ? "Spot on!" : off <= 15 ? "Not far off." : "Quite a gap!";
+  guessReaction.innerHTML =
+    `<strong>${reaction}</strong> In ${years[0]}, ${actual.toFixed(1)}% of people in ` +
+    `${prettyName(countyName)} could speak Irish; you guessed ${guess}%. ` +
+    `Here is everything since, against the Republic&rsquo;s average.`;
+  guessReaction.classList.remove("is-shown");
+  setTimeout(() => guessReaction.classList.add("is-shown"), 1100 * t);
+
+  setHistory(guessView, lines, countyName);
+  realDot.attr("cy", y(actual)).attr("fill", hatchFill("ghatch-dot", GREEN));
+  realDot.transition("reveal").delay(1200 * t).duration(300 * t).attr("opacity", 1);
+  drawPath(lines.average, 1300 * t, 1700 * t);
+  drawPath(lines.county, 1500 * t, 1700 * t);
+  [lines.averageLabel, lines.countyLabel].forEach((label) =>
+    label.transition("reveal").delay(3000 * t).duration(400 * t).attr("opacity", 1),
+  );
+  revealedCounty = countyName;
+}
+
+// Changing the county or the guess after a reveal empties the card again,
+// ready for another go.
+function resetGuess() {
+  if (!revealedCounty || !guessView) return;
+  revealedCounty = null;
+  const { realRow, empty, lines, realDot } = guessView;
+  const t = animate ? 1 : 0;
+  realRow.select(".guess-fill").transition("reveal").duration(400 * t).ease(d3.easeCubicInOut).attr("width", 0);
+  realRow.select(".guess-value").interrupt("reveal").text("?");
+  [lines.average, lines.county, lines.averageLabel, lines.countyLabel, realDot].forEach((el) =>
+    el.interrupt("draw").transition("reveal").duration(300 * t).attr("opacity", 0),
+  );
+  empty.transition("reveal").delay(200 * t).duration(300 * t).attr("opacity", 1);
+  guessReaction.classList.remove("is-shown");
+}
+
+guessRange.addEventListener("input", () => {
+  guessOutput.textContent = `${guessRange.value}%`;
+  resetGuess();
+  setGuessValue();
 });
 
-panelClose.addEventListener("click", hideCountyPanel);
+guessCounty.addEventListener("change", () => {
+  resetGuess();
+  setGuessLabel();
+});
+
+document.getElementById("guess-reveal").addEventListener("click", () => {
+  if (!countyLayer) return;
+  revealGuess();
+
+  // The map keeps the reader's county pinned from now on.
+  readerCounty = guessCounty.value;
+  pinnedCounty = readerCounty;
+  refreshOutlines();
+  updateLabels();
+});
+
+// ─────────────────────────────────────────────
+// 6d. STORY CHART (chapters 2 to 4)
+// ─────────────────────────────────────────────
+
+// A pinned D3 line chart that changes with each scroll step rather than
+// being redrawn: the Republic average uncovers itself to 1911, then 2002;
+// Galway and Wicklow draw in with an orange bracket for the gap between
+// them, which slides from 1851 to 2022; then the 1991 to 1996 jump is
+// picked out in orange.
+const storyChart = document.getElementById("story-chart");
+let storyStep = 1;
+let storyView = null;
+
+function republicAverage(year) {
+  const values = Object.entries(allData[year])
+    .filter(([county, v]) => !NI_COUNTIES.has(county) && v != null)
+    .map(([, v]) => v);
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+const STORY_STEPS = {
+  1: { title: "1851: the average county, 22.1%", until: 1851 },
+  2: { title: "Falling to its lowest: 13.9% in 1911", until: 1911 },
+  3: { title: "Rising to 43.6% by 2002", until: 2002 },
+  4: { title: "1851: Galway and Wicklow, 69 points apart", pair: 1851 },
+  5: { title: "2022: Galway and Wicklow, 9.8 points apart", pair: 2022 },
+  6: { title: "1991 to 1996: up 9.1 points in five years", jump: true },
+};
+
+// The height of a line at a given x, read off the drawn path, so a marker
+// can ride along the curve.
+function pathYAt(pathNode) {
+  const length = pathNode.getTotalLength();
+  const points = d3.range(0, length + 2, 2).map((l) => pathNode.getPointAtLength(l));
+  const bisect = d3.bisector((p) => p.x).left;
+  return (px) => points[Math.min(bisect(points, px), points.length - 1)].y;
+}
+
+function buildStoryChart() {
+  if (typeof d3 === "undefined") return;
+  let title = storyChart.querySelector(".story-title");
+  if (!title) {
+    title = document.createElement("p");
+    title.className = "story-title";
+    storyChart.prepend(title);
+  }
+  const view = lineFrame(storyChart, {
+    h: storyChart.clientWidth < 520 ? Math.min(290, Math.round(window.innerHeight * 0.36)) : 400,
+  });
+  const { svg, x, y, first } = view;
+  const average = years.map((yr) => [yr, republicAverage(yr)]);
+
+  // The average is uncovered by a clip that widens to the step's year.
+  svg.append("clipPath").attr("id", "story-clip")
+    .append("rect").attr("x", 0).attr("y", 0).attr("height", view.h).attr("width", x(first) + 4);
+  const avgGroup = svg.append("g").attr("clip-path", "url(#story-clip)");
+  const avg = avgGroup.append("path").attr("class", "line").attr("stroke", INK).attr("d", linePath(view, average));
+  const points = avgGroup
+    .selectAll("circle")
+    .data(average)
+    .join("circle")
+    .attr("class", "line-point")
+    .attr("r", 2.6)
+    .attr("fill", INK)
+    .attr("cx", ([yr]) => x(Number(yr)))
+    .attr("cy", ([, v]) => y(v));
+
+  const series = (county) => years.map((yr) => [yr, allData[yr][county]]);
+  const galway = svg.append("path").attr("class", "line is-county").attr("d", linePath(view, series("GALWAY"))).attr("opacity", 0);
+  const wicklow = svg.append("path").attr("class", "line is-teal").attr("d", linePath(view, series("WICKLOW"))).attr("opacity", 0);
+
+  const ends = svg.append("g").attr("opacity", 0);
+  const lastYear = years[years.length - 1];
+  placeEndLabels(view, [
+    [ends.append("text").attr("class", "line-end is-county").text("Galway"), allData[lastYear].GALWAY],
+    [ends.append("text").attr("class", "line-end is-teal").text("Wicklow"), allData[lastYear].WICKLOW],
+    [ends.append("text").attr("class", "line-end is-average").text("average"), republicAverage(lastYear)],
+  ]);
+
+  // The orange bracket for the gap between Galway and Wicklow.
+  const gap = svg.append("g").attr("class", "story-gap").attr("opacity", 0).attr("transform", `translate(${x(first)},0)`);
+  const gapLine = gap.append("line").attr("x1", 0).attr("x2", 0);
+  const gapText = gap.append("text").attr("class", "story-note");
+
+  // The 1991 to 1996 jump, over the average.
+  const jump = svg.append("path")
+    .attr("class", "line is-jump")
+    .attr("d", linePath(view, average.filter(([yr]) => yr === "1991" || yr === "1996")))
+    .attr("opacity", 0);
+  const jumpText = svg.append("text")
+    .attr("class", "story-note")
+    .attr("x", x(1991) - 10)
+    .attr("y", y(republicAverage("1996")) - 4)
+    .attr("text-anchor", "end")
+    .attr("opacity", 0)
+    .text("+9.1 points");
+
+  // The marker at the end of the uncovered average, with its value.
+  const head = svg.append("g").attr("class", "story-head");
+  head.append("circle").attr("r", 6);
+  const headText = head.append("text").attr("class", "story-note").attr("x", 10).attr("y", -10);
+
+  storyView = {
+    ...view, title, avg, points, galway, wicklow, ends, gap, gapLine, gapText, jump, jumpText, head, headText,
+    clip: svg.select("#story-clip rect"),
+    yAt: pathYAt(avg.node()),
+    headYear: null,
+    pairShown: false,
+    jumpShown: false,
+  };
+  applyStoryStep(false);
+}
+
+// Moves the chart to the current step. Every change is a transition from
+// whatever is showing, so scrolling back up simply reverses it.
+function applyStoryStep(play = true) {
+  const v = storyView;
+  if (!v) return;
+  const step = STORY_STEPS[storyStep];
+  const t = play && animate ? 900 : 0;
+  const ease = d3.easeCubicInOut;
+  const until = step.until ?? v.last;
+
+  if (v.title.textContent !== step.title) {
+    if (t) {
+      gsap.to(v.title, {
+        opacity: 0,
+        duration: 0.2,
+        onComplete: () => {
+          v.title.textContent = step.title;
+          gsap.to(v.title, { opacity: 1, duration: 0.3 });
+        },
+      });
+    } else {
+      v.title.textContent = step.title;
+    }
+  }
+
+  // Uncover the average to the step's year, the marker riding its tip.
+  v.clip.transition("story").duration(t).ease(ease).attr("width", v.x(until) + 4);
+  const from = v.headYear ?? v.first;
+  v.head
+    .transition("story")
+    .duration(t)
+    .ease(ease)
+    .attr("opacity", step.until ? 1 : 0)
+    .tween("ride", () => {
+      const year = d3.interpolateNumber(from, until);
+      return (k) => {
+        const px = v.x(year(k));
+        const py = v.yAt(px);
+        v.head.attr("transform", `translate(${px},${py})`);
+        const value = k === 1 ? republicAverage(String(until)) : v.y.invert(py);
+        v.headText.text(`${value.toFixed(1)}%`);
+      };
+    });
+  v.headYear = until;
+
+  // The average steps back to grey while Galway and Wicklow are shown.
+  const avgColour = step.pair ? "#b3b5b0" : INK;
+  v.avg.transition("story").duration(t).attr("stroke", avgColour);
+  v.points.transition("story").duration(t).attr("fill", avgColour);
+
+  if (step.pair && !v.pairShown) {
+    drawPath(v.galway, 0.3 * t, 1.4 * t);
+    drawPath(v.wicklow, 0.5 * t, 1.4 * t);
+  } else if (!step.pair) {
+    [v.galway, v.wicklow].forEach((p) => p.interrupt("draw").transition("story").duration(t / 2).attr("opacity", 0));
+  }
+  v.pairShown = Boolean(step.pair);
+  v.ends.transition("story").delay(step.pair ? t * 1.6 : 0).duration(t / 2).attr("opacity", step.pair ? 1 : 0);
+
+  if (step.pair) {
+    const yr = String(step.pair);
+    const hi = allData[yr].GALWAY;
+    const lo = allData[yr].WICKLOW;
+    const atEnd = step.pair === v.last;
+    v.gap.transition("story").delay(step.pair === 1851 ? t : 0).duration(t).ease(ease)
+      .attr("opacity", 1)
+      .attr("transform", `translate(${v.x(step.pair)},0)`);
+    v.gapLine.transition("story").duration(t).ease(ease).attr("y1", v.y(hi)).attr("y2", v.y(lo));
+    // In 1851 the note sits beside the bracket, in the empty middle; in 2022
+    // under it, clear of the lines and their names.
+    v.gapText
+      .text(`${+(hi - lo).toFixed(1)} points`)
+      .attr("text-anchor", atEnd ? "end" : "start")
+      .transition("story").duration(t).ease(ease)
+      .attr("x", atEnd ? -4 : 12)
+      .attr("y", atEnd ? v.y(lo) + 28 : v.y((hi + lo) / 2) + 6);
+  } else {
+    v.gap.transition("story").duration(t / 2).attr("opacity", 0);
+  }
+
+  if (step.jump && !v.jumpShown) drawPath(v.jump, 0.2 * t, 0.7 * t);
+  if (!step.jump) v.jump.interrupt("draw").transition("story").duration(t / 2).attr("opacity", 0);
+  v.jumpText.transition("story").delay(step.jump ? t : 0).duration(t / 2).attr("opacity", step.jump ? 1 : 0);
+  v.jumpShown = Boolean(step.jump);
+}
+
+function setStoryStep(step) {
+  if (step === storyStep) return;
+  storyStep = step;
+  storyChart.dataset.step = step;
+  applyStoryStep();
+}
+
+// ─────────────────────────────────────────────
+// 6e. NORTH AND SOUTH (chapter 5)
+// ─────────────────────────────────────────────
+
+// The two jurisdictions in the latest census: a big range for each, then
+// every county as a ranked bar (Republic first, then Northern Ireland), in
+// the map's colours. Bars share one 0 to 50% scale.
+function buildNorthSouth() {
+  const latest = allData[years[years.length - 1]];
+  const groups = [
+    { name: "Republic of Ireland", counties: Object.keys(layersByCounty).filter((c) => !NI_COUNTIES.has(c)) },
+    { name: "Northern Ireland", counties: Object.keys(layersByCounty).filter((c) => NI_COUNTIES.has(c)) },
+  ].map((group) => ({
+    ...group,
+    counties: group.counties.filter((c) => latest[c] != null).sort((a, b) => latest[b] - latest[a]),
+  }));
+
+  const range = (counties) => [latest[counties[counties.length - 1]], latest[counties[0]]];
+
+  document.getElementById("ns-compare").innerHTML = groups
+    .map((group) => {
+      const [lo, hi] = range(group.counties);
+      return (
+        `<div class="ns-card">` +
+        `<p class="ns-card-name">${group.name}</p>` +
+        `<p class="ns-card-range">${Math.round(lo)}&ndash;${Math.round(hi)}%</p>` +
+        `<p class="ns-card-note">across its ${group.counties.length} counties</p>` +
+        `</div>`
+      );
+    })
+    .join("");
+
+  drawNorthSouthBars(groups, latest);
+}
+
+// Every county as a dot at its value, drawn with D3: Republic counties then
+// Northern Ireland's, hatched in the map's colours, sliding out from 0% one
+// after another when the chart scrolls into view. Dots rather than bars, so
+// the stretch where no county falls stays empty; an orange band then
+// sketches itself across it.
+// Drawn at the container's width so its labels keep their size on a phone;
+// redrawn on resize, showing the end state if it has already played.
+let nsView = null;
+
+function drawNorthSouthBars(groups, latest) {
+  const el = document.getElementById("north-south");
+  if (typeof d3 === "undefined" || !el) return;
+
+  const w = Math.max(300, el.clientWidth);
+  const narrow = w < 520;
+  const nameW = narrow ? 118 : 150;
+  const valueW = 48;
+  const rowH = narrow ? 22 : 20;
+  const headH = 40;
+  const top = 34;
+  // Room between the names and 0% for the labels left of the low dots.
+  const x = d3.scaleLinear().domain([0, 50]).range([nameW + 34, w - valueW]);
+  const played = nsView?.played;
+  nsView = { el, w, groups, latest, played };
+
+  // Lay the rows out: a heading per group, then its counties.
+  const rows = [];
+  let y = top;
+  groups.forEach((group) => {
+    rows.push({ head: group.name, y: y + headH - 12 });
+    y += headH;
+    group.counties.forEach((county) => {
+      rows.push({ county, value: latest[county], y });
+      y += rowH;
+    });
+  });
+  const h = y + 16;
+  const bars = rows.filter((r) => r.county);
+
+  el.innerHTML = "";
+  const svg = d3
+    .select(el)
+    .append("svg")
+    .attr("viewBox", `0 0 ${w} ${h}`)
+    .attr("class", "ns-chart");
+
+  // The gap: from the north's highest county to the Republic's lowest.
+  const northHi = d3.max(groups[1].counties, (c) => latest[c]);
+  const southLo = d3.min(groups[0].counties, (c) => latest[c]);
+  const gap = svg.append("g").attr("class", "ns-gap");
+  gap
+    .append("rect")
+    .attr("x", x(northHi))
+    .attr("y", top)
+    .attr("width", x(southLo) - x(northHi))
+    .attr("height", h - top - 10)
+    .attr("fill", ORANGE)
+    .attr("opacity", 0);
+  gap
+    .append("text")
+    .attr("x", (x(northHi) + x(southLo)) / 2)
+    .attr("y", 20)
+    .attr("text-anchor", "middle")
+    .attr("class", "ns-gap-label")
+    .attr("opacity", 0)
+    .text(`no county between ${Math.round(northHi)}% and ${Math.round(southLo)}%`);
+
+  // Pencil gridlines and their labels.
+  const grid = svg.append("g").attr("class", "ns-grid");
+  [0, 10, 20, 30, 40, 50].forEach((v) => {
+    grid.append("line").attr("x1", x(v)).attr("x2", x(v)).attr("y1", top).attr("y2", h - 10);
+    grid.append("text").attr("x", x(v)).attr("y", h).attr("text-anchor", "middle").text(`${v}%`);
+  });
+
+  svg
+    .selectAll(".ns-head")
+    .data(rows.filter((r) => r.head))
+    .join("text")
+    .attr("class", "ns-head")
+    .attr("x", 0)
+    .attr("y", (r) => r.y)
+    .text((r) => r.head);
+
+  const row = svg
+    .selectAll(".ns-row")
+    .data(bars)
+    .join("g")
+    .attr("class", "ns-row")
+    .attr("transform", (r) => `translate(0, ${r.y})`);
+  row
+    .append("text")
+    .attr("class", "ns-name")
+    .attr("y", rowH * 0.7)
+    .text((r) => prettyName(r.county));
+  row
+    .append("line")
+    .attr("class", "ns-guide")
+    .attr("x1", x(0))
+    .attr("x2", x(50))
+    .attr("y1", rowH / 2)
+    .attr("y2", rowH / 2);
+  const dot = row
+    .append("circle")
+    .attr("class", "ns-dot")
+    .attr("cx", x(0))
+    .attr("cy", rowH / 2)
+    .attr("r", 7)
+    .attr("opacity", 0)
+    .attr("fill", (r) => hatchFill(`nshatch-${r.county}`, getCountyColour(r.value)));
+  const value = row
+    .append("text")
+    .attr("class", "ns-value")
+    // Labels sit outside the gap: right of the Republic's dots, left of the north's.
+    .attr("x", (r) => (r.value > northHi ? x(r.value) + 12 : x(r.value) - 12))
+    .attr("text-anchor", (r) => (r.value > northHi ? "start" : "end"))
+    .attr("y", rowH * 0.7)
+    .attr("opacity", 0)
+    .text((r) => `${r.value.toFixed(1)}%`);
+
+  // The orange edges of the gap, sketched with rough.js so they can draw in.
+  const edges = [];
+  if (typeof rough !== "undefined") {
+    const rc = rough.svg(svg.node());
+    [northHi, southLo].forEach((v, i) => {
+      const edge = rc.line(x(v), top - 4, x(v), h - 10, { stroke: ORANGE, strokeWidth: 2.4, roughness: 1.2, seed: 800 + i });
+      svg.node().appendChild(edge);
+      edges.push(edge);
+    });
+  }
+  const drawEdges = edges.length ? sketchDraw(edges, { duration: 0.9 }) : () => {};
+
+  const play = () => {
+    const quick = !animate || nsView.played;
+    nsView.played = true;
+    const stagger = quick ? 0 : 35;
+    const t = quick ? 0 : 650;
+    dot
+      .transition()
+      .delay((r, i) => i * stagger)
+      .duration(t)
+      .ease(d3.easeCubicOut)
+      .attr("opacity", 1)
+      .attr("cx", (r) => x(r.value));
+    value
+      .transition()
+      .delay((r, i) => i * stagger + t * 0.6)
+      .duration(t * 0.5)
+      .attr("opacity", 1);
+    const after = bars.length * stagger + t;
+    gap.select("rect").transition().delay(after).duration(t).attr("opacity", 0.14);
+    gap.select("text").transition().delay(after + 200).duration(t).attr("opacity", 1);
+    if (quick) return;
+    setTimeout(drawEdges, after);
+  };
+  if (played) play();
+  else onceInView(el, play, 0.25);
+}
+
+// ─────────────────────────────────────────────
+// 6f. OPENER (chapter 01), drawn with D3
+// ─────────────────────────────────────────────
+
+// The 32 counties start as a map whose ink outlines sketch themselves in.
+// As the reader scrolls they fly apart into a grid ranked by their 1851
+// answer, fill with colour (the top of the ranking, then the bottom), and
+// finally fly back together as the coloured 1851 map. Every stage is a D3
+// transition to a fixed state, so scrolling back up simply reverses it.
+const OPENER_BLANK = "#e6e7e3";
+let openerCounties = null;
+
+function buildOpenerMap() {
+  const el = document.getElementById("opener-map");
+  if (!el || typeof d3 === "undefined" || !countyGeojson) return;
+
+  const first = years[0];
+  // Phones get a tall 4 x 8 grid, so the county names stay readable.
+  const narrow = window.matchMedia("(max-width: 520px)").matches;
+  const OPENER_W = narrow ? 400 : 900;
+  const OPENER_H = narrow ? 600 : 520;
+  const cols = narrow ? 4 : 8;
+  const gridRows = 32 / cols;
+  // A flat projection (x scaled by the cosine of Ireland's latitude), fitted
+  // to the box by hand. D3's spherical projections would need every ring
+  // wound clockwise; this GeoJSON's aren't, and a planar transform doesn't
+  // care.
+  const k = Math.cos((53.4 * Math.PI) / 180);
+  const flat = d3.geoTransform({
+    point(lon, lat) {
+      this.stream.point(lon * k, -lat);
+    },
+  });
+  const [[fx0, fy0], [fx1, fy1]] = d3.geoPath(flat).bounds(countyGeojson);
+  const fit = Math.min((narrow ? 360 : 400) / (fx1 - fx0), (OPENER_H - 20) / (fy1 - fy0));
+  const ox = OPENER_W / 2 - ((fx0 + fx1) / 2) * fit;
+  const oy = OPENER_H / 2 - ((fy0 + fy1) / 2) * fit;
+  // Points closer than a pixel to the last one are dropped: the outlines
+  // keep their shape with a few thousand points instead of 150,000, which
+  // is what lets a phone move all 32 smoothly.
+  const projection = d3.geoTransform({
+    lineStart() {
+      this.last = null;
+      this.stream.lineStart();
+    },
+    point(lon, lat) {
+      const px = lon * k * fit + ox;
+      const py = -lat * fit + oy;
+      if (this.last && Math.hypot(px - this.last[0], py - this.last[1]) < 1.2) return;
+      this.last = [px, py];
+      this.stream.point(px, py);
+    },
+  });
+  const path = d3.geoPath(projection);
+
+  // Grid cells ranked by 1851 share.
+  const cellW = OPENER_W / cols;
+  const cellH = OPENER_H / gridRows;
+  const ranked = countyGeojson.features
+    .map((f) => f.properties.COUNTY)
+    .sort((a, b) => allData[first][b] - allData[first][a]);
+
+  openerCounties = countyGeojson.features.map((feature) => {
+    const county = feature.properties.COUNTY;
+    const value = allData[first][county];
+    const [[x0, y0], [x1, y1]] = path.bounds(feature);
+    const rank = ranked.indexOf(county);
+    const cx = (rank % cols) * cellW + cellW / 2;
+    const cy = Math.floor(rank / cols) * cellH + cellH * 0.38;
+    const size = Math.min((cellW * 0.62) / (x1 - x0), (cellH * 0.55) / (y1 - y0));
+    const bx = (x0 + x1) / 2;
+    const by = (y0 + y1) / 2;
+    return {
+      county,
+      value,
+      d: path(feature),
+      band: value >= 40 ? "high" : value < 5 ? "low" : "mid",
+      // Same transform shape in both places, so D3 can tween between them.
+      mapAt: `translate(${bx},${by}) scale(1) translate(${-bx},${-by})`,
+      gridAt: `translate(${cx},${cy}) scale(${size}) translate(${-bx},${-by})`,
+      labelX: cx,
+      labelY: cy + cellH * 0.42,
+    };
+  });
+
+  const svg = d3
+    .select(el)
+    .append("svg")
+    .attr("viewBox", `0 0 ${OPENER_W} ${OPENER_H}`)
+    .attr("class", "opener-svg");
+
+  const shapes = svg
+    .selectAll(".oc")
+    .data(openerCounties)
+    .join("path")
+    .attr("class", "oc")
+    .attr("d", (c) => c.d)
+    .attr("transform", (c) => c.mapAt)
+    .attr("fill", (c) => hatchFill(`ohatch-${c.county}`, OPENER_BLANK));
+
+  const labels = svg
+    .selectAll(".oc-label")
+    .data(openerCounties)
+    .join("g")
+    .attr("class", "oc-label")
+    .attr("transform", (c) => `translate(${c.labelX},${c.labelY})`)
+    .attr("opacity", 0);
+  labels.append("text").attr("class", "oc-name").attr("text-anchor", "middle").text((c) => prettyName(c.county));
+  labels
+    .append("text")
+    .attr("class", "oc-value")
+    .attr("text-anchor", "middle")
+    .attr("y", 16)
+    .attr("opacity", 0)
+    .text((c) => `${c.value.toFixed(1)}%`);
+
+  // On load the counties appear one after another, west to east, as if the
+  // map were being drawn county by county. (A stroke "draw-in" doesn't work
+  // here: the outlines keep their width while the shapes scale.)
+  if (animate) {
+    const [west, east] = d3.extent(countyGeojson.features, (f) => path.centroid(f)[0]);
+    // A named transition, so a stage change (which moves the shapes) doesn't
+    // cancel it.
+    shapes
+      .attr("opacity", 0)
+      .transition("appear")
+      .delay((c, i) => ((path.centroid(countyGeojson.features[i])[0] - west) / (east - west)) * 1400)
+      .duration(600)
+      .ease(d3.easeCubicOut)
+      .attr("opacity", 1);
+  }
+
+  setOpenerStage(Number(document.getElementById("opener").dataset.stage) || 0);
+}
+
+// Moves the counties to a stage: 0 the blank map, 1 the blank ranked grid,
+// 2 grid with the high counties coloured, 3 with the low ones too, 4 back
+// to the map with every county coloured.
+function setOpenerStage(stage) {
+  if (!openerCounties) return;
+  const svg = d3.select("#opener-map svg");
+  const t = animate ? 900 : 0;
+  const inGrid = stage >= 1 && stage <= 3;
+  const coloured = (c) =>
+    stage >= 4 || (stage >= 2 && c.band === "high") || (stage >= 3 && c.band === "low");
+
+  svg
+    .selectAll(".oc")
+    .transition()
+    .duration(t)
+    .delay((c, i) => (animate ? i * 12 : 0))
+    .ease(d3.easeCubicInOut)
+    .attr("transform", (c) => (inGrid ? c.gridAt : c.mapAt));
+
+  svg.selectAll(".oc-label").transition().duration(t / 2).delay(inGrid ? t * 0.7 : 0).attr("opacity", inGrid ? 1 : 0);
+  svg
+    .selectAll(".oc-value")
+    .transition()
+    .duration(t / 2)
+    .attr("opacity", (c) => (inGrid && coloured(c) ? 1 : 0));
+
+  // Recolour each county's hatch pattern (the fill itself stays the same url).
+  openerCounties.forEach((c) => {
+    const colour = coloured(c) ? getCountyColour(c.value) : OPENER_BLANK;
+    d3.select(`#ohatch-${c.county}`)
+      .selectAll("rect, line")
+      .transition()
+      .duration(t)
+      .delay(animate ? 200 : 0)
+      .attr("fill", function () {
+        return this.tagName === "rect" ? colour : null;
+      })
+      .attr("stroke", function () {
+        return this.tagName === "line" ? colour : null;
+      });
+  });
+}
+
+// ─────────────────────────────────────────────
+// 6g. WHAT COUNTS AS SPEAKING IRISH (chapter 04)
+// ─────────────────────────────────────────────
+
+// 100 figures stand for 100 people aged 3 and over, 2022. Groups follow the
+// CSO's Census 2022 summary: 40% could speak Irish (1,873,997); a quarter of
+// those never speak it (472,887, about 10 figures); a third speak it daily
+// (623,961, about 13 figures), mostly in school; 71,968 speak it daily
+// outside the education system (about 1.5 figures, drawn as 2).
+const PEOPLE_GROUPS = [
+  { key: "outside", count: 2 },
+  { key: "school", count: 11 },
+  { key: "less", count: 17 },
+  { key: "never", count: 10 },
+  { key: "no", count: 60 },
+];
+
+const PEOPLE_READOUTS = {
+  1: "<strong>40 in 100</strong> said they can speak Irish",
+  2: "<strong>10</strong> of them never speak it",
+  3: "<strong>13</strong> speak it every day, mostly at school",
+  4: "<strong>fewer than 2</strong> speak it daily outside school",
+};
+
+// Body hand-drawn in VectorCraft (public/img/person.svg), with a plain round
+// head (roughening a circle this small turns it into a diamond); filled by
+// the CSS.
+const PERSON =
+  '<svg viewBox="0 0 20 32" aria-hidden="true">' +
+  '<circle cx="10" cy="6.2" r="5" />' +
+  '<path d="M3.1 31.2 C2 30.3 3.4 27.4 3.3 25.3 C3.3 23.2 2.6 20.5 2.8 18.7 C3.1 16.8 3.7 15.1 4.9 14.2 C6.1 13.2 8.1 13 9.8 13.1 C11.5 13.1 14.1 13.4 15.2 14.4 C16.4 15.4 16.5 17.3 16.8 19.1 C17.1 20.8 17 22.8 17 24.7 C17 26.7 18 29.7 16.8 30.8 C15.7 31.8 12.3 31.1 10 31.2 C7.7 31.2 4.2 32.2 3.1 31.2 Z" />' +
+  "</svg>";
+
+function buildPeople() {
+  const el = document.getElementById("people");
+  // --i lets the CSS ripple each change across the grid instead of
+  // switching all 100 figures at once.
+  let i = 0;
+  el.innerHTML = PEOPLE_GROUPS.flatMap((group) =>
+    Array.from({ length: group.count }, () => `<span class="person is-${group.key}" style="--i:${i++}">${PERSON}</span>`),
+  ).join("");
+  setPeopleStage(1);
+}
+
+function setPeopleStage(stage) {
+  document.getElementById("people").dataset.stage = stage;
+  document.getElementById("people-readout").innerHTML = PEOPLE_READOUTS[stage];
+}
+
+// ─────────────────────────────────────────────
+// 6h. THEN AND NOW (conclusion)
+// ─────────────────────────────────────────────
+
+// 1851 and the latest census side by side, sketched with rough.js from the
+// county shapes: hatched counties in the map's colours, pencil borders, a
+// hand-drawn arrow between them, and a hatched key.
+function buildSketchMaps() {
+  const el = document.getElementById("sketch-maps");
+  if (!el || !countyGeojson || typeof rough === "undefined") return;
+
+  const rings = (geometry) =>
+    geometry.type === "Polygon" ? geometry.coordinates : geometry.coordinates.flat();
+
+  let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
+  countyGeojson.features.forEach((feature) =>
+    rings(feature.geometry).forEach((ring) =>
+      ring.forEach(([lon, lat]) => {
+        minX = Math.min(minX, lon);
+        maxX = Math.max(maxX, lon);
+        minY = Math.min(minY, lat);
+        maxY = Math.max(maxY, lat);
+      }),
+    ),
+  );
+  const k = Math.cos((((minY + maxY) / 2) * Math.PI) / 180);
+  const mapW = 250;
+  const scale = mapW / ((maxX - minX) * k);
+  const mapH = Math.round((maxY - minY) * scale);
+
+  // Thin each ring to points at least 2 units apart and drop specks: rough.js
+  // redraws every segment by hand, so detail beyond that is just noise.
+  const countyPath = (feature, ox, oy) =>
+    rings(feature.geometry)
+      .map((ring) => {
+        const pts = [];
+        ring.forEach(([lon, lat]) => {
+          const p = [(lon - minX) * k * scale + ox, (maxY - lat) * scale + oy];
+          const last = pts[pts.length - 1];
+          if (!last || Math.hypot(p[0] - last[0], p[1] - last[1]) >= 2) pts.push(p);
+        });
+        if (pts.length < 4) return "";
+        return `M${pts.map((p) => p.map((n) => n.toFixed(1)).join(" ")).join("L")}Z`;
+      })
+      .join("");
+
+  const gap = 120;
+  const w = mapW * 2 + gap;
+  const h = mapH + 50;
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  svg.classList.add("sketch-svg");
+  const rc = rough.svg(svg);
+  const text = (tx, ty, str, cls) => {
+    const t = document.createElementNS(svgNS, "text");
+    t.setAttribute("x", tx);
+    t.setAttribute("y", ty);
+    t.setAttribute("text-anchor", "middle");
+    t.setAttribute("class", cls);
+    t.textContent = str;
+    svg.appendChild(t);
+  };
+
+  [years[0], years[years.length - 1]].forEach((year, m) => {
+    const ox = m * (mapW + gap);
+    countyGeojson.features.forEach((feature, i) => {
+      const d = countyPath(feature, ox, 0);
+      if (!d) return;
+      const value = allData[year][feature.properties.COUNTY];
+      svg.appendChild(
+        rc.path(d, {
+          stroke: INK,
+          strokeWidth: 0.9,
+          roughness: 0.8,
+          fill: getCountyColour(value),
+          fillStyle: "hachure",
+          hachureGap: 2.6,
+          hachureAngle: -41,
+          fillWeight: 1.3,
+          seed: 100 + m * 50 + i,
+        }),
+      );
+    });
+    text(ox + mapW / 2, mapH + 38, year, "sketch-year");
+  });
+
+  // A hand-drawn arrow from 1851 to the latest census (VectorCraft).
+  const ay = mapH * 0.45;
+  const ax0 = mapW + 18;
+  const ax1 = mapW + gap - 18;
+  const arrow = document.createElementNS("http://www.w3.org/2000/svg", "image");
+  arrow.setAttribute("href", "img/arrow-170.svg");
+  arrow.setAttribute("x", ax0);
+  arrow.setAttribute("y", ay - 34);
+  arrow.setAttribute("width", ax1 - ax0);
+  arrow.setAttribute("height", (ax1 - ax0) / 2);
+  svg.appendChild(arrow);
+  text((ax0 + ax1) / 2, ay - 40, "170 years", "sketch-note");
+
+  el.innerHTML = "";
+  el.appendChild(svg);
+
+  // A hatched key on the same colour scale.
+  const key = document.getElementById("sketch-key");
+  const keySvg = document.createElementNS(svgNS, "svg");
+  const stops = [0, 5, 20, 40, 60];
+  keySvg.setAttribute("viewBox", `0 0 ${stops.length * 96} 34`);
+  keySvg.classList.add("sketch-key-svg");
+  const krc = rough.svg(keySvg);
+  stops.forEach((v, i) => {
+    keySvg.appendChild(
+      krc.rectangle(i * 96 + 4, 4, 22, 16, {
+        stroke: INK, strokeWidth: 1, roughness: 1, fill: getCountyColour(v + 2),
+        fillStyle: "hachure", hachureGap: 2.6, hachureAngle: -41, fillWeight: 1.3, seed: 200 + i,
+      }),
+    );
+    const t = document.createElementNS(svgNS, "text");
+    t.setAttribute("x", i * 96 + 31);
+    t.setAttribute("y", 17);
+    t.setAttribute("class", "sketch-key-label");
+    t.textContent = i === stops.length - 1 ? "over 60%" : i === 0 ? "under 5%" : `${v}–${stops[i + 1]}%`;
+    keySvg.appendChild(t);
+  });
+  key.innerHTML = "";
+  key.appendChild(keySvg);
+}
 
 // ─────────────────────────────────────────────
 // 7. BOOTSTRAP
 // ─────────────────────────────────────────────
 
 async function initialiseMap() {
-  currentYear = yearSelect.value;
   await loadAllData();
+  currentYear = years[0];
   buildLegend();
   await loadCountyBoundaries();
-  updateContext();
+  setYear(currentYear);
+
+  buildOpenerMap();
+  buildPeople();
+  buildGuess();
+  buildStoryChart();
+  buildNorthSouth();
+  buildSketchMaps();
+  buildFindings();
+  buildClosing();
+  buildHeadingUnderlines();
+
+  // A reload partway down restores the scroll position before the data has
+  // loaded, so the step already on screen was skipped; observing the steps
+  // afresh reports it again.
+  storySteps.forEach((step) => {
+    stepObserver.unobserve(step);
+    stepObserver.observe(step);
+  });
 }
 
 initialiseMap().catch((error) => {
