@@ -626,8 +626,10 @@ h1 {
     transition: opacity 0.5s ease;
   }
 
+  /* !important: the headline's text swap fades it with an inline opacity
+     (map.js), which would otherwise win and show it over the map. */
   .scrolly-map .finding[data-mode^="story-"] {
-    opacity: 0;
+    opacity: 0 !important;
   }
 }
 
