@@ -39,6 +39,8 @@ Pushes to `main` are built and deployed to GitHub Pages by [`.github/workflows/p
 
 Built with Express and EJS, D3, rough.js, RoughNotation, Leaflet and GSAP; the drawings were made in VectorCraft.
 
+Everything the page needs is served from the site itself: the libraries are in [`public/vendor`](public/vendor) and the two handwriting fonts (Gaegu and Patrick Hand, SIL Open Font Licence) in [`public/fonts`](public/fonts), so a blocked or down third-party server can't break it. The libraries keep their own licences (Leaflet BSD-2, D3 ISC, rough.js and RoughNotation MIT, GSAP under GreenSock's licence).
+
 ## Thanks
 
 To [Phelim Birch](https://bsky.app/profile/phelimbirch.bsky.social), who compiled the Northern Ireland figures for his degree project and generously shared them. Without his work the map would stop at the border.

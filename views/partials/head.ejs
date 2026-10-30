@@ -2,15 +2,14 @@
 <% var isMap = (typeof mapPage !== "undefined" && mapPage); %>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<%# Handwriting faces for the whole site: Patrick Hand for reading text and
-    labels, Gaegu for headings and notes. display=block shows text only once
-    its own face is ready, so nothing jumps when the fonts arrive. %>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Patrick+Hand&display=block">
+<%# Everything the page needs is served from this site (css/fonts.css has the
+    two handwriting faces; vendor/ the libraries), so a blocked or slow third-
+    party server can't break it. %>
+<link rel="stylesheet" href="css/fonts.css?v=<%= assetVersion %>">
+<link rel="preload" href="fonts/gaegu-700-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/patrick-hand-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <% if (isMap) { %>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <% } %>
 <%# ?v= changes with every build, so browsers fetch the current files. %>
 <link rel="stylesheet" href="css/style.css?v=<%= assetVersion %>">
