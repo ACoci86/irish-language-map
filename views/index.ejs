@@ -48,10 +48,10 @@
                     <p>In <%= firstYear %>, the census asked everyone in Ireland&rsquo;s 32 counties the same question: <em>can you speak Irish?</em></p>
                 </div>
                 <div class="step opener-step" data-opener="2">
-                    <p>In the <span class="key key-dark">west</span>, most people said yes. In Galway, 69.1%. In Mayo, 65.8%. In Kerry, 61.5%.</p>
+                    <p>In the <span class="rough-mark" data-colour="#6fb78c">west</span>, most people said yes. In Galway, 69.1%. In Mayo, 65.8%. In Kerry, 61.5%.</p>
                 </div>
                 <div class="step opener-step" data-opener="3">
-                    <p>On the <span class="key key-pale">east coast</span>, almost nobody did. In Wicklow, 0.1%. In Dublin, 1.2%.</p>
+                    <p>On the <span class="rough-mark" data-colour="#dbe9cc">east coast</span>, almost nobody did. In Wicklow, 0.1%. In Dublin, 1.2%.</p>
                 </div>
                 <div class="step opener-step" data-opener="4">
                     <p>Two Irelands. This is the story of how that map changed over the next 170 years, and what &ldquo;speaking Irish&rdquo; has come to mean.</p>
@@ -89,14 +89,14 @@
                     <p class="step-note">In 1922 the new Free State placed Irish at the centre of the national-school day. These dates are context: the census alone can&rsquo;t tell us what caused the change.</p>
                 </div>
                 <div class="step" data-story="4">
-                    <p>The counties also came together. In 1851, <strong>Galway</strong> and <span class="key key-teal">Wicklow</span> were <strong>69 points</strong> apart.</p>
+                    <p>The counties also came together. In 1851, <strong>Galway</strong> and <span class="rough-mark" data-colour="#bfe2df">Wicklow</span> were <strong>69 points</strong> apart.</p>
                 </div>
                 <div class="step" data-story="5">
                     <p>By 2022 they were <strong>9.8 points</strong> apart. The widest gap between any two Republic counties is now 13.6 points.</p>
                 </div>
                 <div class="step" data-story="6">
                     <p>One jump stands out. From <strong>1991 to 1996</strong> the average rose 9.1 points, from 33.0% to 42.1%, in five years.</p>
-                    <p class="step-note">That is fast for a language. Treat it with some caution: a jump like this can come from how a question is asked or answered. The <a href="methodology.html">methodology</a> has more.</p>
+                    <p class="step-note">That is fast for a language. Treat it with some caution: a jump like this can come from how a question is asked or answered.</p>
                 </div>
             </div>
         </section>
@@ -110,8 +110,10 @@
             </div>
             <div class="scrolly-graphic">
                 <div class="timeline" id="timeline">
-                    <%# Follows the scroll steps; it shows the year, it isn't a control. %>
-                    <div class="timeline-track" id="timeline-track" aria-hidden="true">
+                    <%# Follows the scroll steps, and is also a control: tap or drag
+                        it (or use the arrow keys) to pick any census. %>
+                    <div class="timeline-track" id="timeline-track" role="slider" tabindex="0"
+                        aria-label="Census year" aria-valuemin="<%= firstYear %>" aria-valuemax="<%= lastYear %>" aria-valuenow="<%= defaultYear %>">
                         <span class="timeline-rail"></span>
                         <span class="timeline-fill" id="timeline-fill"></span>
                         <% abilityYears.forEach((year) => { %>
@@ -140,26 +142,48 @@
             </div>
 
             <div class="scrolly-steps">
-                <div class="step" data-year="1851">
-                    <p>Here is that map in <strong>1851</strong>. The darker the green, the larger the share of people who said they could speak Irish.</p>
+                <%# Each step makes one point about where Irish lived and why that
+                    changed; the note under it gives the history as context. The
+                    line above the map (map.js, MAP_HEADLINES) states the lesson
+                    with figures worked out from the data. %>
+                <div class="step" data-year="1851" data-headline="west">
+                    <p>In <strong>1851</strong>, the darker the green, the more people spoke Irish. It lived along the <strong>west and south coasts</strong>.</p>
+                    <p class="step-note">The east, with its towns and trade with Britain, had already moved to English.</p>
                 </div>
-                <div class="step" data-year="1851" data-county="GALWAY">
-                    <p>Irish was strongest along the Atlantic. <strong>Galway</strong>: 69.1%.</p>
+                <div class="step" data-year="1851" data-county="GALWAY" data-headline="galway">
+                    <p><strong>Galway</strong> led at 69.1%. This first census to ask about Irish came just as the <strong>Great Famine</strong> ended.</p>
+                    <p class="step-note">Hunger and emigration fell heavily on the countryside, where Irish was strongest.</p>
                 </div>
-                <div class="step" data-year="1911" data-county="MAYO">
-                    <p>Sixty years later the west had faded. <strong>Mayo</strong> went from 65.8% to 46.1%.</p>
+                <div class="step" data-year="1911" data-county="MAYO" data-headline="mayo">
+                    <p>By 1911 the heartland had faded: <strong>Mayo</strong> fell from 65.8% to 46.1%.</p>
+                    <p class="step-note">From 1831 the national schools taught in English. Historians debate how much that mattered.</p>
                 </div>
-                <div class="step" data-year="1926">
-                    <p>From 1926 to 1986 there are no county figures for <strong>Northern Ireland</strong>, so its six counties turn grey.</p>
+                <div class="step" data-year="1926" data-headline="north-gap">
+                    <p>Then the six <strong>Northern Ireland</strong> counties turn grey, until 1991.</p>
+                    <p class="step-note">The Northern census dropped the question in 1926. Grey means no record, not no speakers.</p>
                 </div>
-                <div class="step" data-year="1961" data-county="DUBLIN">
-                    <p>Meanwhile the east was catching up. <strong>Dublin</strong> went from 3.7% in 1911 to 21.1% in 1961.</p>
+                <div class="step" data-year="1961" data-county="DUBLIN" data-headline="dublin">
+                    <p><strong>Dublin</strong> rose from 3.7% in 1911 to 21.1% in 1961, while Galway kept falling.</p>
+                    <p class="step-note">From 1922 Irish was compulsory in national schools. The census can&rsquo;t prove a link, but the timing is hard to miss.</p>
                 </div>
-                <div class="step" data-year="2022" data-county="WICKLOW">
-                    <p>By 2022, <strong>Wicklow</strong>, once at 0.1%, was at 39.0%. The two Irelands of 1851 had become one.</p>
+                <div class="step" data-year="1981" data-headline="slow">
+                    <p>The next decades were slow: by <strong>1981</strong> the east had crept up and the heartland had slipped.</p>
+                    <p class="step-note">Dublin gained 7 points and Wicklow 5, while Galway lost 3.</p>
+                </div>
+                <div class="step" data-year="1991" data-headline="north-returns">
+                    <p>In <strong>1991</strong> the North reappears, for the first time since 1911, and is the palest on the map.</p>
+                    <p class="step-note">The question returned after the Anglo-Irish Agreement of 1985.</p>
+                </div>
+                <div class="step" data-year="1996" data-headline="jump">
+                    <p>In <strong>1996</strong> the whole Republic turned green at once.</p>
+                    <p class="step-note">That year the CSO brought in a new question, so part of the leap may be the wording.</p>
+                </div>
+                <div class="step" data-year="2022" data-county="WICKLOW" data-headline="wicklow">
+                    <p>By 2022 <strong>Wicklow</strong>, once at 0.1%, was at 39.0%. The old west&ndash;east divide had gone.</p>
+                    <p class="step-note">The Republic peaked in 2002. The sharpest line left is the border.</p>
                 </div>
                 <div class="step" data-year="2022">
-                    <p>Every census, from 1851 to 2022. Tap any county to pin its figure on the map.</p>
+                    <p>Now explore: <strong>drag the timeline</strong>, or <strong>tap a county</strong>.</p>
                 </div>
             </div>
         </section>
@@ -179,10 +203,12 @@
             <div class="ns-compare" id="ns-compare"></div>
             <div class="ns-bars" id="north-south" role="img"
                 aria-label="Bar chart of every county in the latest census: Republic counties from 48.8% (Galway) to 35.2% (Louth), Northern Ireland counties from 10.0% (Tyrone) to 4.1% (Down), with no county between 10% and 35%."></div>
+            <%# Phones: the chart above is a pile of falling dots; tapping a dot
+                names it here (map.js). %>
+            <p class="ns-readout" aria-live="polite"></p>
             <p class="chart-caption">
                 Latest census: 2022 in the Republic, 2021 in Northern Ireland, which
-                runs its own census. There are no county figures for Northern
-                Ireland from 1926 to 1986.
+                runs its own census.
             </p>
         </section>
 
@@ -304,10 +330,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollToPlugin.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
-<%# RoughNotation: the hand-drawn highlight on the closing proverb. %>
+<%# RoughNotation: the hand-drawn highlights (a step's marked words, the
+    closing proverb). %>
 <script src="https://unpkg.com/rough-notation@0.5.1/lib/rough-notation.iife.js"></script>
-<script src="js/map.js"></script>
-<script src="js/nav.js"></script>
+<script src="js/map.js?v=<%= assetVersion %>"></script>
+<script src="js/nav.js?v=<%= assetVersion %>"></script>
 
 </body>
 

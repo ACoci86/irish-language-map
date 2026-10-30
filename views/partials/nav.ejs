@@ -3,15 +3,20 @@
     <div class="topnav-inner">
         <a class="brand" href="index.html">
             <img class="brand-logo" src="logo.png" width="768" height="768" alt="">
+            <%# Name on two lines with the proverb under it, set off from the logo
+                by a thin rule. %>
             <span class="brand-text">
-                <span class="brand-name">Irish language map</span>
+                <span class="brand-name"><span>Irish</span> <span>language map</span></span>
+                <span class="brand-tagline" lang="ga">Tír gan teanga, tír gan anam.</span>
             </span>
         </a>
 
-        <%# Phones: a handwritten "Menu" that opens the links as a full page. %>
+        <%# Phones: a "Menu" pill that opens the links as a full page. Its three
+            bars turn into an X while it's open. %>
         <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">
             <span class="toggle-open">Menu</span>
             <span class="toggle-close">Close</span>
+            <span class="toggle-icon" aria-hidden="true"><i></i><i></i><i></i></span>
         </button>
 
         <div class="nav-links" id="nav-links">

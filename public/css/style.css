@@ -17,7 +17,9 @@
   --mono: var(--sans);
   --hand: "Gaegu", "Patrick Hand", "Comic Sans MS", cursive;
   /* Uneven corners, so boxes look drawn rather than ruled. */
-  --wobbly: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  /* Boxes: neat rounded corners and a thin ink line (named "wobbly" from
+     when the corners were uneven). */
+  --wobbly: 10px;
 
   /* One column, one type scale and one corner radius for the whole site. */
   --col: 860px; /* graphics break out wider than the text */
@@ -123,15 +125,32 @@ h3,
   height: 112px;
 }
 
+/* The name on two lines with the proverb under it, set off from the logo
+   by a thin pale green rule. */
 .brand-text {
   display: flex;
   flex-direction: column;
-  line-height: 1.2;
+  padding-left: 16px;
+  border-left: 2px solid #cfe5d6;
 }
 
 .brand-name {
-  font-size: 22px;
+  font-family: var(--hand);
+  font-size: 32px;
   font-weight: 700;
+  line-height: 1.02;
+}
+
+.brand-name > span {
+  display: block;
+}
+
+.brand-tagline {
+  margin-top: 6px;
+  font-family: var(--hand);
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
 }
 
 .nav-links {
@@ -243,7 +262,8 @@ h3,
 .opener-map {
   flex: none;
   width: min(900px, 100%);
-  height: 44svh;
+  /* Shorter on a short window, so the title and scroll cue stay on screen. */
+  height: clamp(180px, min(44svh, 100svh - 430px), 60svh);
   transition: height 0.8s ease;
 }
 
@@ -311,9 +331,8 @@ h3,
   font-weight: 300;
   line-height: 1.45;
   background: #fff;
-  border: 2px solid var(--ink);
+  border: 1px solid var(--ink);
   border-radius: var(--wobbly);
-  box-shadow: 6px 6px 0 var(--sand);
 }
 
 .opener-steps .step em {
@@ -371,23 +390,6 @@ h1 {
   letter-spacing: -0.02em;
 }
 
-/* Words printed in the map's own colours, so the sentence is the legend. */
-.key {
-  padding: 0 6px;
-  border-radius: var(--wobbly);
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.key-pale {
-  background: #dbe9cc;
-}
-
-.key-dark {
-  background: #0b5137;
-  color: #fff;
-}
-
 /* ── Scrollytelling: pinned graphic, steps scrolling past ── */
 .scrolly {
   display: grid;
@@ -435,9 +437,8 @@ h1 {
   margin-bottom: 45svh;
   padding: 22px 24px;
   background: #fff;
-  border: 2px solid var(--ink);
+  border: 1px solid var(--ink);
   border-radius: var(--wobbly);
-  box-shadow: 6px 6px 0 var(--sand);
   opacity: 0.45;
   transition: opacity 0.3s ease;
 }
@@ -472,9 +473,27 @@ h1 {
   padding: 0 14px;
 }
 
+/* Tap or drag anywhere along it to pick a census (map.js). */
 .timeline-track {
   position: relative;
   height: 72px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.timeline-track:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.timeline-handle {
+  transition: transform 0.15s ease;
+}
+
+.timeline-track:hover .timeline-handle,
+.timeline-track.is-dragging .timeline-handle {
+  transform: translate(-50%, -50%) scale(1.2);
 }
 
 .timeline-rail,
@@ -634,6 +653,14 @@ h1 {
   inset: 0;
   z-index: 800;
   pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+/* Hidden while the map travels through the censuses to a new step. */
+.callout-arrows.is-travelling,
+.callouts.is-travelling {
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
 
 .callout-arrows {
@@ -734,12 +761,16 @@ h1 {
   transform: translateX(-100%);
 }
 
+/* Level with the bar: the same 15px height (the ticks sit 20px below the
+   bar), with the text's line set to it so the middles line up. */
 .legend-nodata {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  height: 15px;
   margin-bottom: 20px;
-  font-size: var(--fs-xs);
+  font-size: 14px;
+  line-height: 1;
   color: var(--muted);
 }
 
@@ -880,7 +911,7 @@ h1 {
   padding: 8px 18px;
   background: var(--ink);
   color: #fff;
-  border: 2px solid var(--ink);
+  border: 1px solid var(--ink);
   border-radius: var(--wobbly);
   font: inherit;
   font-size: 18px;
@@ -922,7 +953,7 @@ h1 {
   font-weight: 400;
   color: var(--ink);
   background: #fff;
-  border: 2px solid var(--ink);
+  border: 1px solid var(--ink);
   border-radius: var(--wobbly);
 }
 
@@ -940,16 +971,15 @@ h1 {
   color: var(--green);
 }
 
-/* The guess card: the empty chart waiting for the answer, on a hand-drawn
-   card like the scroll steps. */
+/* The guess card: the empty chart waiting for the answer, in a box like
+   the scroll steps. */
 .guess-card {
   max-width: var(--text);
   margin: 28px auto 0;
   padding: 22px 24px;
   background: #fff;
-  border: 2px solid var(--ink);
+  border: 1px solid var(--ink);
   border-radius: var(--wobbly);
-  box-shadow: 6px 6px 0 var(--sand);
 }
 
 /* The D3 line charts (story, guess, county), drawn at their real size. */
@@ -1118,6 +1148,17 @@ h1 {
   transform: none;
 }
 
+/* Until there's a verdict, the slot holds a quiet hint. */
+.guess-reaction.is-hint {
+  opacity: 1;
+  transform: none;
+  font-family: var(--hand);
+  font-size: 19px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--muted);
+}
+
 .guess-reaction strong {
   display: block;
   font-family: var(--hand);
@@ -1146,9 +1187,9 @@ h1 {
   color: var(--muted);
 }
 
-.key-teal {
-  background: var(--teal);
-  color: #fff;
+/* A word marked with a hand-swept highlight (RoughNotation, map.js). */
+.rough-mark {
+  font-weight: 700;
 }
 
 /* ── Two jurisdictions ── */
@@ -1171,9 +1212,8 @@ h1 {
 .ns-card {
   padding: 14px 18px;
   background: #fff;
-  border: 2px solid var(--ink);
+  border: 1px solid var(--ink);
   border-radius: var(--wobbly);
-  box-shadow: 6px 6px 0 var(--sand);
   text-align: center;
 }
 
@@ -1254,6 +1294,60 @@ h1 {
 .ns-dot {
   stroke: var(--ink);
   stroke-width: 1.4;
+}
+
+/* Phones: a pile of falling dots (map.js), with a tap readout. */
+.ns-readout {
+  display: none;
+}
+
+.ns-compact .ns-readout {
+  display: block;
+  margin: 6px auto 0;
+  font-family: var(--hand);
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--muted);
+}
+
+.ns-readout strong {
+  color: var(--green);
+}
+
+.ns-pile .ns-callout {
+  font-size: 15px;
+}
+
+/* Smaller than the chart's other titles and note, so they fit a phone. */
+.ns-pile .ns-head {
+  font-size: 19px;
+}
+
+.ns-pile .ns-gap-label {
+  font-size: 16px;
+}
+
+.ns-pile .ns-callout-name {
+  font-family: var(--sans);
+  font-weight: 700;
+  fill: var(--ink);
+}
+
+.ns-pile .ns-callout-value {
+  font-family: var(--hand);
+  font-size: 19px;
+  font-weight: 700;
+  fill: var(--green);
+}
+
+.ns-baseline {
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+
+.ns-dot.is-picked {
+  stroke-width: 2.6;
 }
 
 .ns-chart .ns-gap-label {
@@ -1411,8 +1505,7 @@ h1 {
   fill: var(--muted);
 }
 
-/* The three findings as hand-drawn stat cards, slightly askew like notes
-   pinned to a board. */
+/* The three findings as stat cards. */
 .findings {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1427,18 +1520,8 @@ h1 {
   position: relative;
   padding: 26px 20px 18px;
   background: #fff;
-  border: 2px solid var(--ink);
+  border: 1px solid var(--ink);
   border-radius: var(--wobbly);
-  box-shadow: 6px 6px 0 var(--sand);
-  transform: rotate(-1deg);
-}
-
-.finding-card:nth-child(2) {
-  transform: rotate(0.8deg);
-}
-
-.finding-card:nth-child(3) {
-  transform: rotate(-0.6deg);
 }
 
 /* The year on a little tab over the card's top edge. */
@@ -1453,9 +1536,8 @@ h1 {
   line-height: 28px;
   color: #fff;
   background: var(--green);
-  border: 2px solid var(--ink);
+  border: 1px solid var(--ink);
   border-radius: var(--wobbly);
-  transform: rotate(-3deg);
 }
 
 .finding-stat {
@@ -1526,17 +1608,15 @@ h1 {
   margin: 0 auto 6px;
 }
 
-/* A personal note (About) or the short version (Methodology), on a pinned
-   card like the story's findings. */
+/* A personal note (About) or the short version (Methodology), in a card
+   like the story's findings. */
 .note-card {
   position: relative;
   margin: 8px 0 12px;
   padding: 30px 26px 20px;
   background: #fff;
-  border: 2px solid var(--ink);
+  border: 1px solid var(--ink);
   border-radius: var(--wobbly);
-  box-shadow: 6px 6px 0 var(--sand);
-  transform: rotate(-0.6deg);
 }
 
 .note-tag {
@@ -1550,9 +1630,8 @@ h1 {
   line-height: 30px;
   color: #fff;
   background: var(--green);
-  border: 2px solid var(--ink);
+  border: 1px solid var(--ink);
   border-radius: var(--wobbly);
-  transform: rotate(-3deg);
 }
 
 .prose .note-hello {
@@ -1644,39 +1723,91 @@ h1 {
 /* ── Responsive ─────────────────────────────── */
 @media (max-width: 900px) {
   .topnav-inner {
-    height: 88px;
-    padding: 0 16px;
+    height: 112px;
+    padding: 0 14px;
+  }
+
+  .brand {
+    gap: 10px;
   }
 
   .brand-logo {
-    width: 78px;
-    height: 78px;
+    width: 84px;
+    height: 84px;
+  }
+
+  .brand-text {
+    padding-left: 10px;
   }
 
   .brand-name {
-    font-size: 20px;
+    font-size: 24px;
   }
 
-  /* A handwritten "Menu" with the pen underline; "Close" while open. It
-     and the logo stay above the open menu page. */
+  .brand-tagline {
+    margin-top: 4px;
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
+  }
+
+  /* "Menu" in a pale green pill with three bars; "Close" and an X while
+     open. It and the logo stay above the open menu page. */
   .brand {
     position: relative;
     z-index: 1400;
   }
 
   .nav-toggle {
-    display: block;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
     position: relative;
     z-index: 1400;
     margin-left: auto;
-    padding: 2px 4px 10px;
+    padding: 8px 14px 8px 16px;
     border: none;
+    border-radius: 999px;
+    background: #d6e9dd;
     font-family: var(--hand);
-    font-size: 25px;
+    font-size: 22px;
     font-weight: 700;
+    line-height: 1;
     color: var(--ink);
-    background: var(--pen-underline) left bottom / 100% 9px no-repeat;
     cursor: pointer;
+  }
+
+  .toggle-icon {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 16px;
+  }
+
+  .toggle-icon i {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 2.5px;
+    border-radius: 2px;
+    background: var(--ink);
+    transition: transform 0.35s cubic-bezier(0.65, 0, 0.35, 1), opacity 0.2s ease;
+  }
+
+  .toggle-icon i:nth-child(1) { top: 0; }
+  .toggle-icon i:nth-child(2) { top: 7px; }
+  .toggle-icon i:nth-child(3) { top: 14px; }
+
+  .nav-toggle[aria-expanded="true"] .toggle-icon i:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+  }
+
+  .nav-toggle[aria-expanded="true"] .toggle-icon i:nth-child(2) {
+    opacity: 0;
+  }
+
+  .nav-toggle[aria-expanded="true"] .toggle-icon i:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
   }
 
   .nav-toggle:focus-visible {
@@ -1705,14 +1836,18 @@ h1 {
     margin: 0;
     padding: 90px 24px 70px;
     background: var(--bg);
-    opacity: 0;
+    /* Grows as a circle out of the Menu button (nav.js sets where). */
+    clip-path: circle(0 at var(--from-x, 90%) var(--from-y, 56px));
     visibility: hidden;
-    transition: opacity 0.3s ease, visibility 0.3s;
+    transition:
+      clip-path 0.55s cubic-bezier(0.65, 0, 0.35, 1),
+      visibility 0s linear 0.55s;
   }
 
   .nav-links.open {
-    opacity: 1;
+    clip-path: circle(150vmax at var(--from-x, 90%) var(--from-y, 56px));
     visibility: visible;
+    transition: clip-path 0.6s cubic-bezier(0.65, 0, 0.35, 1);
   }
 
   .nav-links a {
@@ -1725,21 +1860,23 @@ h1 {
     font-size: 40px;
     background: none;
     opacity: 0;
-    transform: translateY(16px);
-    transition: opacity 0.4s ease, transform 0.4s ease;
+    transform: translateY(18px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
   }
 
+  /* Once the page has mostly grown, the links rise in one after another. */
   .nav-links.open a {
     opacity: 1;
     transform: none;
+    transition: opacity 0.45s ease 0.2s, transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) 0.2s;
   }
 
   .nav-links.open a:nth-child(2) {
-    transition-delay: 0.07s;
+    transition-delay: 0.28s;
   }
 
   .nav-links.open a:nth-child(3) {
-    transition-delay: 0.14s;
+    transition-delay: 0.36s;
   }
 
   .nav-spot {
@@ -1798,8 +1935,12 @@ h1 {
   }
 
   /* Graphic in the top part of the screen; steps rest underneath it. */
+  /* Each graphic sits centred in the space above the caption box, so a
+     tall tablet shares out its spare room rather than leaving one gap. */
   .scrolly-graphic {
-    justify-content: flex-start;
+    /* "safe": when the graphic is taller than the room, it aligns to the
+       top rather than spilling out under the heading band. */
+    justify-content: safe center;
     padding: 8px 0;
   }
 
@@ -1832,9 +1973,11 @@ h1 {
   }
 
   /* Room under each graphic for its caption. */
+  /* The box sits 26px up from the bottom (map.js sets --cap-h to its real
+     height); the content ends 12px above it. */
   .scrolly-graphic {
     --cap-h: 200px;
-    padding-bottom: calc(var(--cap-h) + 16px);
+    padding-bottom: calc(var(--cap-h) + 38px);
   }
 
   .step-caption {
@@ -1844,11 +1987,13 @@ h1 {
     right: 0;
     bottom: 26px;
     z-index: 1000;
-    padding: 14px 16px;
+    /* A readable width on a tablet. */
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 11px 14px;
     background: #fff;
-    border: 2px solid var(--ink);
+    border: 1px solid var(--ink);
     border-radius: var(--wobbly);
-    box-shadow: 6px 6px 0 var(--sand);
     pointer-events: auto;
   }
 
@@ -1865,12 +2010,14 @@ h1 {
 
   .step-caption p {
     margin: 0;
-    font-size: 18px;
-    line-height: 1.45;
+    font-size: 17px;
+    line-height: 1.35;
   }
 
   .step-caption p + p {
-    margin-top: 8px;
+    margin-top: 6px;
+    font-size: 15px;
+    line-height: 1.3;
   }
 
   .opener .step-caption {
@@ -1883,6 +2030,12 @@ h1 {
     font-size: 19px;
   }
 
+  /* The grid and map fill the screen above the caption, on phones and
+     tablets alike. */
+  .opener:not([data-stage="0"]) .opener-map {
+    height: calc(100svh - 190px);
+  }
+
   .scrolly > .chapter-head {
     padding: 0 16px;
   }
@@ -1892,10 +2045,54 @@ h1 {
     line-height: 1.45;
   }
 
-  /* What's left above the caption, after the timeline and the headline. */
+  /* The map takes whatever height is left between the headline (one line
+     or three) and the caption box; map.js refits the island when that
+     changes. */
+  .scrolly-graphic .map-wrap {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    /* The map keeps this much, so it can never shrink underneath the legend;
+       on a very short screen the section is a little taller instead. */
+    min-height: 190px;
+  }
+
   #map {
-    height: calc(100svh - var(--head-h) - var(--cap-h) - 175px);
-    min-height: 240px;
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 190px;
+  }
+
+  /* A compact timeline and headline on phones, to leave room for the map. */
+  .timeline-track {
+    height: 60px;
+  }
+
+  .timeline-stop,
+  .timeline-handle {
+    top: 35px;
+  }
+
+  .timeline-rail {
+    top: 34px;
+  }
+
+  .timeline-fill {
+    top: 32px;
+  }
+
+  .timeline-year {
+    font-size: 21px;
+  }
+
+  .timeline-axis span {
+    top: 46px;
+    font-size: 15px;
+  }
+
+  .finding {
+    margin-top: 6px;
+    font-size: 22px;
   }
 
   /* Narrower callouts beside the small map. */
@@ -1915,7 +2112,7 @@ h1 {
   /* The 10 x 10 people (about 1.12 times as tall as wide) fit above the
      caption too. */
   .people-figure {
-    max-width: min(330px, calc((100svh - var(--head-h) - var(--cap-h) - 180px) / 1.12));
+    max-width: min(460px, calc((100svh - var(--head-h) - var(--cap-h) - 180px) / 1.12));
   }
 
   .people-readout {
@@ -1935,6 +2132,37 @@ h1 {
   }
 }
 
+/* Narrow phones: a slightly more compact header, so the name keeps to two
+   lines beside the Menu pill. */
+@media (max-width: 380px) {
+  .brand-logo {
+    width: 70px;
+    height: 70px;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand-name {
+    font-size: 21px;
+  }
+
+  .brand-tagline {
+    font-size: 11.5px;
+  }
+
+  .nav-toggle {
+    gap: 8px;
+    padding: 7px 11px 7px 13px;
+    font-size: 19px;
+  }
+
+  .toggle-icon {
+    width: 17px;
+  }
+}
+
 @media (max-width: 520px) {
   .ns-card-range {
     font-size: 36px;
@@ -1945,9 +2173,6 @@ h1 {
   }
 
   /* The grid and map fill the screen above the caption. */
-  .opener:not([data-stage="0"]) .opener-map {
-    height: calc(100svh - 190px);
-  }
 
   .hero .dek {
     font-size: var(--fs-body);
@@ -1964,6 +2189,10 @@ h1 {
 
   .guess-card {
     padding: 16px 12px;
+  }
+
+  .guess-reaction {
+    min-height: 78px;
   }
 
   .findings {

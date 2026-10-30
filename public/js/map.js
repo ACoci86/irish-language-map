@@ -112,6 +112,46 @@ const trackFill = document.getElementById("timeline-fill");
 const yearLabel = document.getElementById("timeline-year");
 const trackHandle = document.getElementById("timeline-handle");
 const stops = Array.from(document.querySelectorAll(".timeline-stop"));
+const timelineTrack = document.getElementById("timeline-track");
+
+// The timeline is also a control: tap or drag along it to snap to the
+// nearest census, or use the arrow keys. (The scroll steps still move it
+// as the reader passes them.)
+function yearAtPointer(event) {
+  const box = timelineTrack.getBoundingClientRect();
+  const pct = ((event.clientX - box.left) / box.width) * 100;
+  let best = stops[0];
+  stops.forEach((stop) => {
+    if (Math.abs(parseFloat(stop.style.left) - pct) < Math.abs(parseFloat(best.style.left) - pct)) best = stop;
+  });
+  return best.dataset.year;
+}
+
+function pickYear(year) {
+  if (!countyLayer || year === currentYear) return;
+  storyHeadline = null;
+  stopTravel();
+  setYear(year);
+}
+
+timelineTrack.addEventListener("pointerdown", (event) => {
+  timelineTrack.setPointerCapture(event.pointerId);
+  timelineTrack.classList.add("is-dragging");
+  pickYear(yearAtPointer(event));
+});
+timelineTrack.addEventListener("pointermove", (event) => {
+  if (timelineTrack.hasPointerCapture(event.pointerId)) pickYear(yearAtPointer(event));
+});
+["pointerup", "pointercancel"].forEach((type) =>
+  timelineTrack.addEventListener(type, () => timelineTrack.classList.remove("is-dragging")),
+);
+timelineTrack.addEventListener("keydown", (event) => {
+  const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[event.key];
+  if (!step) return;
+  event.preventDefault();
+  const i = years.indexOf(currentYear) + step;
+  if (i >= 0 && i < years.length) pickYear(years[i]);
+});
 const findingEl = document.getElementById("finding");
 const opener = document.getElementById("opener");
 
@@ -230,21 +270,35 @@ function lineFrame(el, { h, top = 28 }) {
   return { svg, x, y, w, h, narrow, first, last };
 }
 
-// A census series as a smooth line; missing years (Northern Ireland's
-// 1926 to 1986) leave gaps.
+// A census series as a smooth line. Northern Ireland has figures only in
+// some years (1991, 2002, 2011, 2022), so the line joins across short runs
+// of missing years and breaks only across a long gap like 1926 to 1986.
 function linePath(view, values) {
-  return d3
+  const line = d3
     .line()
-    .defined(([, v]) => v != null)
     .x(([yr]) => view.x(Number(yr)))
     .y(([, v]) => view.y(v))
-    .curve(d3.curveMonotoneX)(values);
+    .curve(d3.curveMonotoneX);
+  const runs = [];
+  let run = [];
+  values
+    .filter(([, v]) => v != null)
+    .forEach((point) => {
+      const last = run[run.length - 1];
+      if (last && Number(point[0]) - Number(last[0]) > 20) {
+        runs.push(run);
+        run = [];
+      }
+      run.push(point);
+    });
+  if (run.length) runs.push(run);
+  return runs.map((r) => line(r)).join(" ");
 }
 
 // Draws a path in like a pen stroke, left to right. With no duration it
 // simply appears.
 function drawPath(path, delay, duration) {
-  path.interrupt("draw");
+  path.interrupt("draw").interrupt("reveal");
   if (!duration) {
     path.attr("opacity", 1).attr("stroke-dasharray", null).attr("stroke-dashoffset", null);
     return;
@@ -412,9 +466,10 @@ function buildStepCues() {
       target = next && next.closest("section") === section ? next : section.nextElementSibling;
     }
     if (!target) return;
-    const y = target.classList.contains("step")
-      ? target.getBoundingClientRect().top + window.scrollY - window.innerHeight * band
-      : target.getBoundingClientRect().top + window.scrollY;
+    // Opener steps are a screen tall with the sentence at the foot: land
+    // their top at the top of the screen.
+    const offset = target.classList.contains("opener-step") ? 0 : target.classList.contains("step") ? window.innerHeight * band : 0;
+    const y = target.getBoundingClientRect().top + window.scrollY - offset;
     if (animate) gsap.to(window, { scrollTo: y, duration: 1, ease: "power2.inOut" });
     else window.scrollTo(0, y);
   });
@@ -422,29 +477,29 @@ function buildStepCues() {
 
 // The opening screen's scroll cue. Tapping it glides to the first sentence.
 // And if the reader hasn't scrolled after a few seconds, the screen lifts a
-// little and settles back, a hint that there's more below; it repeats now
-// and then until they scroll.
+// little and settles back, once, a hint that there's more below.
 function buildScrollHint() {
   const cue = document.getElementById("hero-scroll");
   const first = document.querySelector(".opener-step");
   if (!cue || !first) return;
 
   cue.addEventListener("click", () => {
-    const y = first.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.5;
+    // An opener step is a full screen tall with its sentence at the foot,
+    // so land its top at the top of the screen.
+    const y = first.getBoundingClientRect().top + window.scrollY;
     if (animate) gsap.to(window, { scrollTo: y, duration: 1.2, ease: "power2.inOut" });
     else window.scrollTo(0, y);
   });
 
   if (!animate) return;
   const opener = document.getElementById("opener");
-  let timer = setTimeout(nudge, 3000);
+  const timer = setTimeout(nudge, 3000);
   function nudge() {
     if (window.scrollY > 10) return;
     gsap
       .timeline()
       .to(opener, { y: -40, duration: 0.45, ease: "power2.out" })
       .to(opener, { y: 0, duration: 0.9, ease: "bounce.out" });
-    timer = setTimeout(nudge, 6000);
   }
   window.addEventListener(
     "scroll",
@@ -707,8 +762,11 @@ function setHover(countyName) {
 
 function togglePin(countyName) {
   pinnedCounty = pinnedCounty === countyName ? null : countyName;
+  storyHeadline = null;
+  lastFindingValue = null;
   refreshOutlines();
   updateLabels();
+  updateContext();
 }
 
 // Renders the legend as a titled gradient bar matching the map's ramp, plus
@@ -740,7 +798,75 @@ function buildLegend() {
 
 let lastFindingValue = null;
 
-// Updates the headline sentence above the map and the paragraph below it.
+// The line above the map: one lesson per step, with its figures worked out
+// from the data (so they stay true if the data is corrected). Null once the
+// reader takes the timeline or taps a county; then the line follows them.
+let storyHeadline = null;
+// The year the current step is travelling to: a step's line is always worked
+// out for it, so its numbers don't change census by census on the way.
+let storyYear = null;
+let lastFindingHTML = "";
+
+// Swaps the headline's text with a short fade, and only if it has changed.
+function setFindingHTML(html) {
+  if (html === lastFindingHTML) return;
+  const first = !lastFindingHTML;
+  lastFindingHTML = html;
+  gsap.killTweensOf(findingEl);
+  if (!animate || first) {
+    findingEl.innerHTML = html;
+    findingEl.style.opacity = 1;
+    return;
+  }
+  gsap.to(findingEl, {
+    opacity: 0,
+    duration: 0.15,
+    onComplete: () => {
+      findingEl.innerHTML = html;
+      gsap.to(findingEl, { opacity: 1, duration: 0.3 });
+    },
+  });
+}
+
+const hi = (text) => `<strong class="hi">${text}</strong>`;
+const first = () => years[0];
+// The counties that led in 1851: above 40% that year.
+const heartland = () => Object.keys(allData[first()]).filter((c) => allData[first()][c] >= 40);
+const mean = (list) => list.reduce((t, v) => t + v, 0) / list.length;
+const MAP_HEADLINES = {
+  west: () => `Irish lived in the ${hi("west")}: ${hi(`${heartland().length} counties`)} topped 40%.`,
+  galway: () => `In Galway, ${hi(`${allData[first()].GALWAY.toFixed(1)}%`)} could speak Irish: two in three.`,
+  mayo: (year) => {
+    const then = mean(heartland().map((c) => allData[first()][c]));
+    const now = mean(heartland().map((c) => allData[year][c]));
+    return `The heartland fell from ${hi(`${Math.round(then)}%`)} to ${hi(`${Math.round(now)}%`)}.`;
+  },
+  "north-gap": () => `After partition, the North ${hi("stopped counting")}.`,
+  dublin: (year) => {
+    const up = allData[year].DUBLIN - allData["1911"].DUBLIN;
+    const down = allData["1911"].GALWAY - allData[year].GALWAY;
+    return `Ability moved east: Dublin ${hi(`up ${Math.round(up)}`)}, Galway ${hi(`down ${Math.round(down)}`)}.`;
+  },
+  slow: (year) => {
+    const avg = (y) => Math.round(mean(Object.entries(allData[y]).filter(([c, v]) => v != null && !NI_COUNTIES.has(c)).map(([, v]) => v)));
+    return `Slow years: the average crept from ${hi(`${avg("1961")}%`)} to ${hi(`${avg(year)}%`)}.`;
+  },
+  "north-returns": (year) => {
+    const vals = (test) => Object.entries(allData[year]).filter(([c, v]) => v != null && test(c)).map(([, v]) => v);
+    return `The North is back at ${hi(`${Math.round(Math.min(...vals((c) => NI_COUNTIES.has(c))))}–${Math.round(Math.max(...vals((c) => NI_COUNTIES.has(c))))}%`)}; the Republic averages ${hi(`${Math.round(mean(vals((c) => !NI_COUNTIES.has(c))))}%`)}.`;
+  },
+  jump: (year) => {
+    const over = (y) => Object.entries(allData[y]).filter(([c, v]) => v != null && !NI_COUNTIES.has(c) && v >= 40).length;
+    return `In five years, counties above 40% went from ${hi(over("1991"))} to ${hi(over(year))}.`;
+  },
+  wicklow: (year) => {
+    const vals = (test) => Object.entries(allData[year]).filter(([c, v]) => v != null && test(c)).map(([, v]) => v);
+    const rep = vals((c) => !NI_COUNTIES.has(c));
+    const ni = vals((c) => NI_COUNTIES.has(c));
+    return `The divide now runs north to south: ${hi(`${Math.floor(Math.min(...rep))}–${Math.ceil(Math.max(...rep))}%`)} against ${hi(`${Math.floor(Math.min(...ni))}–${Math.ceil(Math.max(...ni))}%`)}.`;
+  },
+};
+
 function updateContext() {
   const year = currentYear;
 
@@ -754,20 +880,56 @@ function updateContext() {
   }
 
   entries.sort((a, b) => b[1] - a[1]);
-  const [hiName, hiVal] = entries[0];
 
-  // The sentence is built once and then only its parts change, so the
-  // counting number keeps its element between years.
-  if (!document.getElementById("finding-county")) {
+  // A step's own line for the story (see MAP_HEADLINES), until the reader
+  // takes over the timeline or taps a county.
+  if (storyHeadline && MAP_HEADLINES[storyHeadline]) {
+    const ty = storyYear || year;
+    const tEntries = Object.entries(allData[ty]).filter(([, v]) => v != null).sort((a, b) => b[1] - a[1]);
+    setFindingHTML(MAP_HEADLINES[storyHeadline](ty, tEntries));
+    findingEl.dataset.mode = `story-${storyHeadline}`;
+    lastFindingValue = null;
+    return;
+  }
+  lastFindingHTML = "";
+
+  // Otherwise about the pinned county when there is one (the step's, or the
+  // reader's tap), or else the year's whole range, low to high.
+  const pinnedValue = pinnedCounty ? currentYearData()[pinnedCounty] : null;
+  const mode = !pinnedCounty ? "range" : pinnedValue == null ? "none" : "pinned";
+  if (mode === "range") {
+    const [hiName, hiVal] = entries[0];
+    const [loName, loVal] = entries[entries.length - 1];
     findingEl.innerHTML =
-      `In <strong id="finding-year"></strong>, <strong class="hi" id="finding-county"></strong> ` +
-      `had the most Irish speakers: <strong class="hi" id="finding-value"></strong>.`;
+      `<strong>${year}</strong>: from <strong class="hi">${loVal.toFixed(1)}%</strong> ` +
+      `in ${prettyName(loName).split(" / ")[0]} to <strong class="hi">${hiVal.toFixed(1)}%</strong> in ${prettyName(hiName).split(" / ")[0]}.`;
+    findingEl.dataset.mode = mode;
+    lastFindingValue = null;
+    return;
+  }
+  const [name, value] = [pinnedCounty, pinnedValue];
+
+  if (mode === "none") {
+    findingEl.innerHTML =
+      `In <strong>${year}</strong> there is no figure for <strong class="hi">${prettyName(name)}</strong>.`;
+    findingEl.dataset.mode = mode;
+    lastFindingValue = null;
+    return;
+  }
+
+  // The sentence is built once per kind and then only its parts change, so
+  // the counting number keeps its element between years.
+  if (findingEl.dataset.mode !== mode) {
+    findingEl.dataset.mode = mode;
+    lastFindingValue = null;
+    findingEl.innerHTML =
+      `In <strong id="finding-year"></strong>, <strong class="hi" id="finding-value"></strong> ` +
+      `of people in <strong class="hi" id="finding-county"></strong> could speak Irish.`;
   }
   document.getElementById("finding-year").textContent = year;
-  tweenPercent(document.getElementById("finding-value"), lastFindingValue, hiVal);
-  lastFindingValue = hiVal;
-
-  document.getElementById("finding-county").textContent = prettyName(hiName);
+  tweenPercent(document.getElementById("finding-value"), lastFindingValue, value);
+  lastFindingValue = value;
+  document.getElementById("finding-county").textContent = prettyName(name);
 }
 
 // ─────────────────────────────────────────────
@@ -825,6 +987,11 @@ async function loadCountyBoundaries(download) {
   fitIsland();
 }
 
+// On phones the map's box changes height with the headline above it.
+new ResizeObserver(() => {
+  if (countyLayer) fitIsland();
+}).observe(document.getElementById("map"));
+
 function fitIsland() {
   map.invalidateSize();
   const room = calloutRoom();
@@ -840,7 +1007,7 @@ window.addEventListener("resize", () => {
   // fire resize as the address bar hides, so only a real width change counts.
   if (storyView && storyChart.clientWidth !== storyView.w) buildStoryChart();
   if (guessView && guessChart.clientWidth !== guessView.w) buildGuessChart();
-  if (nsView && nsView.el.clientWidth !== nsView.w) drawNorthSouthBars(nsView.groups, nsView.latest);
+  if (nsView && document.getElementById("north-south").clientWidth !== nsView.w) renderNorthSouth();
 });
 
 // ─────────────────────────────────────────────
@@ -849,9 +1016,47 @@ window.addEventListener("resize", () => {
 
 // Moves the whole page to the given census year. Used by the map's scroll
 // steps.
+// Moving between the map's steps travels through time: every census between
+// the current year and the step's is shown in turn (forwards or backwards),
+// so the map changes like a timeline rather than leaping decades. A long
+// trip goes a little faster per census, so no step takes more than about
+// two seconds. A new step, or the reader taking the timeline, stops a trip.
+let travelTimer = null;
+let travelling = false;
+
+function stopTravel() {
+  clearTimeout(travelTimer);
+  travelTimer = null;
+  travelling = false;
+}
+
+function travelTo(year) {
+  stopTravel();
+  const from = years.indexOf(currentYear);
+  const to = years.indexOf(year);
+  if (!animate || from < 0 || to < 0 || from === to) {
+    setYear(year);
+    return;
+  }
+  const dir = Math.sign(to - from);
+  const count = Math.abs(to - from);
+  const pace = Math.max(110, Math.min(280, 2000 / count));
+  let i = from;
+  travelling = true;
+  const next = () => {
+    i += dir;
+    if (i === to) travelling = false;
+    setYear(years[i]);
+    if (i !== to) travelTimer = setTimeout(next, pace);
+    else travelTimer = null;
+  };
+  next();
+}
+
 function setYear(year) {
   currentYear = year;
   yearLabel.textContent = year;
+  timelineTrack.setAttribute("aria-valuenow", year);
 
   stops.forEach((stop) => {
     const isCurrent = stop.dataset.year === year;
@@ -861,7 +1066,8 @@ function setYear(year) {
     // The fill and the handle follow the selected census.
     const pct = parseFloat(stop.style.left);
     if (animate) {
-      const tween = { duration: 0.35, ease: "power2.out" };
+      // Short and even, so a trip through the years glides steadily.
+      const tween = { duration: travelTimer ? 0.2 : 0.35, ease: travelTimer ? "none" : "power2.out" };
       gsap.to(trackFill, { width: `${pct}%`, ...tween });
       gsap.to(trackHandle, { left: `${pct}%`, ...tween });
     } else {
@@ -872,7 +1078,11 @@ function setYear(year) {
 
   refreshOutlines();
   updateContext();
-  updateLabels();
+  // The name labels sit out the trip (they'd flicker at every census) and
+  // come back, rebuilt, when the map arrives.
+  calloutLabels.classList.toggle("is-travelling", travelling);
+  calloutArrows.classList.toggle("is-travelling", travelling);
+  if (!travelling) updateLabels();
 
   // Keep an open tooltip in step with the new year.
   if (hoverCounty && layersByCounty[hoverCounty].isTooltipOpen()) {
@@ -902,6 +1112,85 @@ document.querySelectorAll(".scrolly-graphic, .opener-graphic").forEach((graphic)
   caption.className = "step-caption";
   caption.setAttribute("aria-hidden", "true");
   graphic.appendChild(caption);
+  // The box's height changes with each step's text; the graphic reserves
+  // exactly that much room under its map or chart (--cap-h in style.css).
+  new ResizeObserver(() => {
+    if (caption.offsetHeight) graphic.style.setProperty("--cap-h", `${caption.offsetHeight}px`);
+  }).observe(caption);
+});
+
+// Words marked in a step's text (class "rough-mark", with a data-colour)
+// get a hand-swept RoughNotation highlight when the step comes up: on the
+// card itself, or on phones in the caption box that shows it.
+function markWords(container) {
+  if (typeof RoughNotation === "undefined") return;
+  container.querySelectorAll(".rough-mark:not(.is-marked)").forEach((el) => {
+    el.classList.add("is-marked");
+    RoughNotation.annotate(el, {
+      type: "highlight",
+      color: el.dataset.colour,
+      multiline: true,
+      iterations: 2,
+      animate,
+      animationDuration: 800,
+    }).show();
+  });
+}
+
+// The headline and the caption box change text at every step, and with it
+// their height, which used to shove the map up and down. Both are now given
+// the height of the tallest text they will hold, so nothing around them moves.
+function measureHeight(host, texts) {
+  const probe = host.cloneNode(false);
+  probe.removeAttribute("id");
+  probe.style.cssText += ";position:absolute;visibility:hidden;pointer-events:none;min-height:0;height:auto;opacity:1;transform:none;left:0;right:0;top:0;bottom:auto";
+  probe.style.width = `${host.offsetWidth}px`;
+  host.parentNode.appendChild(probe);
+  let tallest = 0;
+  texts.forEach((html) => {
+    probe.innerHTML = html;
+    tallest = Math.max(tallest, probe.offsetHeight);
+  });
+  probe.remove();
+  return tallest;
+}
+
+function steadySizes() {
+  if (!findingEl || !allData) return;
+  // The headline: every step's line, plus the lines for exploring.
+  const lines = [...document.querySelectorAll(".scrolly:not(.scrolly-chart):not(.scrolly-people) .step[data-headline]")]
+    .filter((step) => MAP_HEADLINES[step.dataset.headline])
+    .map((step) => {
+      const y = step.dataset.year;
+      const entries = Object.entries(allData[y]).filter(([, v]) => v != null).sort((a, b) => b[1] - a[1]);
+      return MAP_HEADLINES[step.dataset.headline](y, entries);
+    });
+  lines.push(
+    `<strong>2022</strong>: from <strong class="hi">4.1%</strong> in Down to <strong class="hi">48.8%</strong> in Galway.`,
+    `In <strong>1911</strong>, <strong class="hi">38.0%</strong> of people in <strong class="hi">Derry / Londonderry</strong> could speak Irish.`,
+  );
+  findingEl.style.minHeight = "0px";
+  findingEl.style.minHeight = `${Math.ceil(measureHeight(findingEl, lines))}px`;
+
+  // Each caption box: its section's tallest step.
+  document.querySelectorAll(".scrolly-graphic, .opener-graphic").forEach((graphic) => {
+    const caption = graphic.querySelector(".step-caption");
+    if (!caption) return;
+    caption.style.minHeight = "";
+    if (!phoneLayout.matches) return;
+    const host = graphic.closest(".scrolly, .opener");
+    const texts = [...host.querySelectorAll(".step:not(.opener-spacer)")].map((s) => s.innerHTML);
+    caption.style.minHeight = `${Math.ceil(measureHeight(caption, texts))}px`;
+  });
+}
+
+let steadyWidth = 0;
+function refreshSteady() {
+  steadyWidth = window.innerWidth;
+  steadySizes();
+}
+window.addEventListener("resize", () => {
+  if (window.innerWidth !== steadyWidth) refreshSteady();
 });
 
 function showCaption(step) {
@@ -913,6 +1202,7 @@ function showCaption(step) {
   if (!animate || !phoneLayout.matches) {
     caption.innerHTML = html;
     host.updateIdle?.();
+    if (phoneLayout.matches) markWords(caption);
     return;
   }
   gsap.killTweensOf(caption);
@@ -924,7 +1214,7 @@ function showCaption(step) {
     onComplete: () => {
       caption.innerHTML = html;
       host.updateIdle?.();
-      gsap.to(caption, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" });
+      gsap.to(caption, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out", onComplete: () => markWords(caption) });
     },
   });
 }
@@ -941,6 +1231,7 @@ const stepObserver = new IntersectionObserver(
         .querySelectorAll(".step")
         .forEach((other) => other.classList.toggle("is-active", other === step));
       showCaption(step);
+      if (!phoneLayout.matches) markWords(step);
 
       if (step.dataset.opener) {
         opener.dataset.stage = step.dataset.opener;
@@ -956,7 +1247,9 @@ const stepObserver = new IntersectionObserver(
         return;
       }
       pinnedCounty = step.dataset.county || null;
-      setYear(step.dataset.year);
+      storyHeadline = step.dataset.headline || null;
+      storyYear = step.dataset.year;
+      travelTo(step.dataset.year);
     });
   },
   // The trigger band: a fifth of the screen around the middle on desktop,
@@ -990,7 +1283,11 @@ let revealedCounty = null;
 // The drawn chart: its scales and the pieces the reveal animates.
 let guessView = null;
 
+const GUESS_HINT = "Tap Reveal to see how close you were.";
+
 function buildGuess() {
+  guessReaction.classList.add("is-hint");
+  guessReaction.textContent = GUESS_HINT;
   guessCounty.innerHTML = Object.keys(layersByCounty)
     .sort((a, b) => prettyName(a).localeCompare(prettyName(b)))
     .map((county) => `<option value="${county}"${county === "DUBLIN" ? " selected" : ""}>${prettyName(county)}</option>`)
@@ -1004,10 +1301,10 @@ function buildGuess() {
 function buildGuessChart() {
   if (typeof d3 === "undefined") return;
   const narrow = guessChart.clientWidth < 520;
-  const view = lineFrame(guessChart, { h: narrow ? 400 : 440, top: 132 });
+  const view = lineFrame(guessChart, { h: narrow ? 372 : 440, top: 132 });
   const { svg, x, y, w, first } = view;
   svg.classed("guess-svg", true);
-  const labelW = narrow ? 96 : 140;
+  const labelW = narrow ? 112 : 140;
   const valueW = 58;
   const barH = 18;
   const bx = d3.scaleLinear().domain([0, SCALE_MAX]).range([labelW, w - valueW]);
@@ -1061,7 +1358,9 @@ function buildGuessChart() {
 
 function setGuessLabel() {
   if (!guessView) return;
-  guessView.realRow.select(".guess-label").text(`${prettyName(guessCounty.value)}, ${years[0]}`);
+  // "Derry / Londonderry" is too long for a phone's label column.
+  const name = prettyName(guessCounty.value);
+  guessView.realRow.select(".guess-label").text(`${guessView.narrow ? name.split(" / ")[0] : name}, ${years[0]}`);
 }
 
 // Follows the slider: no transition, so the bar and dot track the thumb.
@@ -1100,6 +1399,7 @@ function revealGuess(play = true) {
 
   const off = Math.abs(guess - actual);
   const reaction = off <= 5 ? "Spot on!" : off <= 15 ? "Not far off." : "Quite a gap!";
+  guessReaction.classList.remove("is-hint");
   guessReaction.innerHTML =
     `<strong>${reaction}</strong> In ${years[0]}, ${actual.toFixed(1)}% of people in ` +
     `${prettyName(countyName)} could speak Irish; you guessed ${guess}%. ` +
@@ -1108,6 +1408,8 @@ function revealGuess(play = true) {
   setTimeout(() => guessReaction.classList.add("is-shown"), 1100 * t);
 
   setHistory(guessView, lines, countyName);
+  // The bar above already says "Your guess"; the note would sit on the lines.
+  guessView.guessDot.select("text").interrupt("reveal").transition("reveal").delay(1200 * t).duration(300 * t).attr("opacity", 0);
   realDot.attr("cy", y(actual)).attr("fill", hatchFill("ghatch-dot", GREEN));
   realDot.transition("reveal").delay(1200 * t).duration(300 * t).attr("opacity", 1);
   drawPath(lines.average, 1300 * t, 1700 * t);
@@ -1131,7 +1433,13 @@ function resetGuess() {
     el.interrupt("draw").transition("reveal").duration(300 * t).attr("opacity", 0),
   );
   empty.transition("reveal").delay(200 * t).duration(300 * t).attr("opacity", 1);
+  guessView.guessDot.select("text").interrupt("reveal").transition("reveal").duration(300 * t).attr("opacity", 1);
   guessReaction.classList.remove("is-shown");
+  setTimeout(() => {
+    if (revealedCounty) return;
+    guessReaction.classList.add("is-hint");
+    guessReaction.textContent = GUESS_HINT;
+  }, 450 * t);
 }
 
 guessRange.addEventListener("input", () => {
@@ -1197,7 +1505,12 @@ function buildStoryChart() {
     storyChart.prepend(title);
   }
   const view = lineFrame(storyChart, {
-    h: storyChart.clientWidth < 520 ? Math.min(290, Math.round(window.innerHeight * 0.36)) : 400,
+    // In the phone/tablet layout the chart takes the height left above the
+    // caption box (title, axis labels and caption allowed for), up to a
+    // comfortable 4:3, so a tall tablet doesn't leave it small.
+    h: phoneLayout.matches
+      ? Math.round(Math.max(240, Math.min(storyChart.clientWidth * 0.95, window.innerHeight - 76 - 216 - 170)))
+      : 400,
   });
   const { svg, x, y, first } = view;
   const average = years.map((yr) => [yr, republicAverage(yr)]);
@@ -1388,20 +1701,200 @@ function buildNorthSouth() {
     })
     .join("");
 
-  drawNorthSouthBars(groups, latest);
+  nsView = { groups, latest, w: 0 };
+  renderNorthSouth();
 }
 
-// Every county as a dot at its value, drawn with D3: Republic counties then
-// Northern Ireland's, hatched in the map's colours, sliding out from 0% one
-// after another when the chart scrolls into view. Dots rather than bars, so
-// the stretch where no county falls stays empty; an orange band then
-// sketches itself across it.
+// On phones the two jurisdictions are one pile of dots on a single floor
+// (a phone can't hold 32 readable rows beside their names); on wider
+// screens, the ranked rows. Redrawn if the width crosses between the two.
+function renderNorthSouth() {
+  const el = document.getElementById("north-south");
+  if (!el || !nsView) return;
+  nsView.w = el.clientWidth;
+  el.closest("section").classList.toggle("ns-compact", el.clientWidth < 520);
+  if (el.clientWidth < 520) drawNorthSouthPile(nsView.groups, nsView.latest, el);
+  else drawNorthSouthBars(nsView.groups, nsView.latest, el);
+}
+
+// A short hand-inked arrow, with an open head, from a label to a dot.
+function inkArrow(svg, from, to, seed) {
+  const rc = rough.svg(svg.node());
+  const dx = to[0] - from[0], dy = to[1] - from[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const end = [to[0] - (dx / len) * 9, to[1] - (dy / len) * 9];
+  const ctrl = [(from[0] + end[0]) / 2 - dy * 0.15, (from[1] + end[1]) / 2 + dx * 0.15];
+  const dir = Math.atan2(end[1] - ctrl[1], end[0] - ctrl[0]);
+  const arm = (turn) => [end[0] - 7 * Math.cos(dir + turn), end[1] - 7 * Math.sin(dir + turn)];
+  const opts = { stroke: INK, strokeWidth: 1.5, roughness: 0.8, bowing: 0.6, seed };
+  const nodes = [
+    rc.path(`M${from[0]} ${from[1]} Q${ctrl[0]} ${ctrl[1]} ${end[0]} ${end[1]}`, opts),
+    rc.linearPath([arm(0.5), end, arm(-0.5)], { ...opts, roughness: 0.3 }),
+  ];
+  nodes.forEach((n) => svg.node().appendChild(n));
+  return nodes;
+}
+
+// Every county as a dot. They drop onto one floor and pile up at their
+// value on a 0 to 50% scale: the Republic's 26 on the right, Northern
+// Ireland's 6 on the left, and the empty stretch between them, the gap,
+// tinted orange. When the last dot has stopped, the highest and lowest of
+// each pile are named, with their figures, on hand-drawn arrows; tap any
+// dot for its own.
+function drawNorthSouthPile(groups, latest, el) {
+  if (typeof d3 === "undefined") return;
+  const w = Math.max(300, el.clientWidth);
+  const pad = 16;
+  const r = 6.5;
+  const x = d3.scaleLinear().domain([0, 50]).range([pad + 4, w - pad - 4]);
+
+  // Each dot's resting place: its own value across, and the lowest free
+  // spot up (the piles are built from the highest value down).
+  const rest = [];
+  groups.forEach((g, gi) => {
+    const placed = [];
+    [...g.counties]
+      .sort((a, b) => latest[b] - latest[a])
+      .forEach((county) => {
+        const cx = x(latest[county]);
+        let level = 0;
+        for (;;) {
+          const cy = -(r + level * (r * 1.8));
+          if (placed.every((p) => Math.hypot(p.cx - cx, p.cy - cy) >= 2 * r + 1.2)) {
+            const d = { county, group: gi, cx, cy, level };
+            placed.push(d);
+            rest.push(d);
+            break;
+          }
+          level++;
+        }
+      });
+  });
+  const rise = (gi) => Math.max(...rest.filter((d) => d.group === gi).map((d) => -d.cy)) + r;
+
+  // Layout: titles across the top, a row for the highest label, then the
+  // tallest pile, the floor, and the scale.
+  const titleY = 24;
+  const bandTop = 40;
+  const pileTop = 108;
+  const floor = pileTop + Math.max(rise(0), rise(1)) + 4;
+  const h = floor + 40;
+  rest.forEach((d) => (d.y = floor + d.cy));
+
+  el.innerHTML = "";
+  const svg = d3.select(el).append("svg").attr("viewBox", `0 0 ${w} ${h}`).attr("class", "ns-chart ns-pile");
+
+  // The gap: a band from the north's highest county to the Republic's lowest.
+  const northHi = d3.max(groups[1].counties, (c) => latest[c]);
+  const southLo = d3.min(groups[0].counties, (c) => latest[c]);
+  const gap = svg.append("g").attr("class", "ns-gap");
+  gap.append("rect").attr("x", x(northHi)).attr("y", bandTop).attr("width", x(southLo) - x(northHi)).attr("height", floor - bandTop)
+    .attr("fill", ORANGE).attr("opacity", 0);
+  const gapMid = (x(northHi) + x(southLo)) / 2;
+  const gapLabel = gap.append("text").attr("class", "ns-gap-label").attr("text-anchor", "middle").attr("opacity", 0);
+  gapLabel.append("tspan").attr("x", gapMid).attr("y", bandTop + 26).text("no county between");
+  gapLabel.append("tspan").attr("x", gapMid).attr("dy", 22).text(`${Math.round(northHi)}% and ${Math.round(southLo)}%`);
+
+  // Gridlines, the floor and the scale.
+  const grid = svg.append("g").attr("class", "ns-grid");
+  [0, 10, 20, 30, 40, 50].forEach((v) => {
+    grid.append("line").attr("x1", x(v)).attr("x2", x(v)).attr("y1", bandTop).attr("y2", floor);
+    grid.append("text").attr("x", x(v)).attr("y", floor + 22).attr("text-anchor", v === 0 ? "start" : v === 50 ? "end" : "middle").text(`${v}%`);
+  });
+  svg.append("line").attr("class", "ns-baseline").attr("x1", x(0) - 4).attr("x2", x(50) + 4).attr("y1", floor).attr("y2", floor);
+
+  // Group titles, one on each side, above the gap band.
+  svg.append("text").attr("class", "ns-head").attr("x", pad).attr("y", titleY).text("Northern Ireland");
+  svg.append("text").attr("class", "ns-head").attr("x", w - pad).attr("y", titleY).attr("text-anchor", "end").text("Republic of Ireland");
+
+  // The dots, waiting above the pile.
+  const readout = d3.select(el.parentNode).select(".ns-readout");
+  const dots = rest
+    .slice()
+    .sort((a, b) => a.level - b.level || a.cx - b.cx)
+    .map((d) => {
+      const dot = svg.append("circle").attr("class", "ns-dot")
+        .attr("cx", d.cx).attr("cy", bandTop - 14).attr("r", r).attr("opacity", 0)
+        .attr("fill", hatchFill(`nshatch-${d.county}`, getCountyColour(latest[d.county])))
+        .attr("role", "img").attr("aria-label", `${prettyName(d.county)} ${latest[d.county].toFixed(1)}%`)
+        .style("cursor", "pointer");
+      dot.on("click", () => {
+        svg.selectAll(".ns-dot").classed("is-picked", false);
+        dot.classed("is-picked", true);
+        readout.html(`<strong>${prettyName(d.county)}</strong> ${latest[d.county].toFixed(1)}%`);
+      });
+      return { dot, d };
+    });
+  readout.html("Tap a dot for its county.");
+
+  // The names: the highest and lowest of each pile, on arrows. Built now,
+  // shown once the dots have stopped.
+  const at = (county) => rest.find((d) => d.county === county);
+  const hiS = groups[0].counties[0], loS = groups[0].counties[groups[0].counties.length - 1];
+  const hiN = groups[1].counties[0], loN = groups[1].counties[groups[1].counties.length - 1];
+  const callouts = svg.append("g").attr("class", "ns-callouts").attr("opacity", 0);
+  const label = (text, county, lx, ly, anchor, arrowFrom, seed) => {
+    const t = callouts.append("text").attr("class", "ns-callout").attr("x", lx).attr("y", ly).attr("text-anchor", anchor);
+    // Name over figure: narrow, so it fits beside a pile.
+    t.append("tspan").attr("class", "ns-callout-name").attr("x", lx).text(prettyName(county).split(" / ")[0]);
+    t.append("tspan").attr("class", "ns-callout-value").attr("x", lx).attr("dy", 18).text(`${latest[county].toFixed(1)}%`);
+    const d = at(county);
+    return inkArrow(svg, arrowFrom, [d.cx, d.y], seed);
+  };
+  const edges = [];
+  if (typeof rough !== "undefined") {
+    const rc = rough.svg(svg.node());
+    [northHi, southLo].forEach((v, i) => {
+      const edge = rc.line(x(v), bandTop, x(v), floor, { stroke: ORANGE, strokeWidth: 2.4, roughness: 1.2, seed: 810 + i });
+      svg.node().appendChild(edge);
+      edges.push(edge);
+    });
+  }
+  const arrows = [];
+  if (typeof rough !== "undefined") {
+    const s = at(hiS), l = at(loS), n = at(hiN), dn = at(loN);
+    arrows.push(...label("hiS", hiS, w - pad, pileTop - 48, "end", [s.cx - 2, pileTop - 20], 11));
+    arrows.push(...label("loS", loS, l.cx - 34, l.y - 4, "end", [l.cx - 32, l.y], 12));
+    arrows.push(...label("hiN", hiN, n.cx + 40, n.y - 44, "start", [n.cx + 36, n.y - 20], 13));
+    arrows.push(...label("loN", loN, pad, dn.y - 84, "start", [dn.cx, dn.y - 48], 14));
+  }
+  const drawInk = sketchDraw([...edges, ...arrows], { duration: 0.9 });
+
+  // Dots fall in turn, lowest of the pile first, and bounce as they land.
+  const play = () => {
+    const quick = !animate || nsPlayed;
+    nsPlayed = true;
+    if (quick) {
+      dots.forEach(({ dot, d }) => dot.attr("cy", d.y).attr("opacity", 1));
+      gap.selectAll("rect").attr("opacity", 0.14);
+      gapLabel.attr("opacity", 1);
+      callouts.attr("opacity", 1);
+      return;
+    }
+    const stagger = 38;
+    let end = 0;
+    dots.forEach(({ dot, d }, i) => {
+      const fall = Math.round(380 + 38 * Math.sqrt(Math.max(0, d.y - bandTop)));
+      end = Math.max(end, i * stagger + fall);
+      dot.transition().delay(i * stagger).duration(60).attr("opacity", 1)
+        .transition().duration(fall).ease(d3.easeBounceOut).attr("cy", d.y);
+    });
+    // When the last has stopped: the gap, then the names.
+    gap.selectAll("rect").transition().delay(end).duration(450).attr("opacity", 0.14);
+    gapLabel.transition().delay(end + 150).duration(450).attr("opacity", 1);
+    callouts.transition().delay(end + 400).duration(500).attr("opacity", 1);
+    setTimeout(drawInk, end + 150);
+  };
+  if (nsPlayed) play();
+  else onceInView(el, play, 0.25);
+}
+
 // Drawn at the container's width so its labels keep their size on a phone;
 // redrawn on resize, showing the end state if it has already played.
 let nsView = null;
+let nsPlayed = false;
 
-function drawNorthSouthBars(groups, latest) {
-  const el = document.getElementById("north-south");
+function drawNorthSouthBars(groups, latest, el = document.getElementById("north-south")) {
   if (typeof d3 === "undefined" || !el) return;
 
   const w = Math.max(300, el.clientWidth);
@@ -1413,8 +1906,7 @@ function drawNorthSouthBars(groups, latest) {
   const top = 34;
   // Room between the names and 0% for the labels left of the low dots.
   const x = d3.scaleLinear().domain([0, 50]).range([nameW + 34, w - valueW]);
-  const played = nsView?.played;
-  nsView = { el, w, groups, latest, played };
+  const played = nsPlayed;
 
   // Lay the rows out: a heading per group, then its counties.
   const rows = [];
@@ -1523,8 +2015,8 @@ function drawNorthSouthBars(groups, latest) {
   const drawEdges = edges.length ? sketchDraw(edges, { duration: 0.9 }) : () => {};
 
   const play = () => {
-    const quick = !animate || nsView.played;
-    nsView.played = true;
+    const quick = !animate || nsPlayed;
+    nsPlayed = true;
     const stagger = quick ? 0 : 35;
     const t = quick ? 0 : 650;
     dot
@@ -1542,8 +2034,9 @@ function drawNorthSouthBars(groups, latest) {
     const after = bars.length * stagger + t;
     gap.select("rect").transition().delay(after).duration(t).attr("opacity", 0.14);
     gap.select("text").transition().delay(after + 200).duration(t).attr("opacity", 1);
-    if (quick) return;
-    setTimeout(drawEdges, after);
+    // A redraw (a resize) shows the edges at once.
+    if (quick) drawEdges();
+    else setTimeout(drawEdges, after);
   };
   if (played) play();
   else onceInView(el, play, 0.25);
@@ -1566,8 +2059,9 @@ function buildOpenerMap() {
   if (!el || typeof d3 === "undefined" || !openerGeojson) return;
 
   const first = years[0];
-  // Phones get a tall 4 x 8 grid, so the county names stay readable.
-  const narrow = window.matchMedia("(max-width: 520px)").matches;
+  // Phones, and tablets held upright, get a tall 4 x 8 grid, so the names
+  // stay readable and the grid fills the tall screen.
+  const narrow = window.matchMedia("(max-width: 520px), (max-width: 900px) and (orientation: portrait)").matches;
   const OPENER_W = narrow ? 400 : 900;
   const OPENER_H = narrow ? 600 : 520;
   const cols = narrow ? 4 : 8;
@@ -1953,6 +2447,8 @@ async function initialiseMap() {
     await nextTask();
     build();
   }
+  refreshSteady();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(refreshSteady);
 
   // A reload partway down restores the scroll position before the data has
   // loaded, so the step already on screen was skipped; observing the steps

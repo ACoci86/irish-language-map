@@ -17,8 +17,12 @@ async function build() {
 
   // 1. Render each page to static HTML.
   const SITE = "https://irishlanguagemap.org";
+  // Stamped on the stylesheet and script URLs, so every build is fetched
+  // afresh rather than served from a browser's cache.
+  const assetVersion = Date.now().toString(36);
 
   const index = await ejs.renderFile("views/index.ejs", {
+    assetVersion,
     title: "Irish language map",
     ogTitle: "Reported ability to speak Irish, 1851 to 2022",
     description:
@@ -30,6 +34,7 @@ async function build() {
   fs.writeFileSync("dist/index.html", index);
 
   const about = await ejs.renderFile("views/about.ejs", {
+    assetVersion,
     title: "About - Irish language map",
     description:
       "About the Irish language map: who made it, what it shows, and thanks to the people behind the data.",
@@ -38,6 +43,7 @@ async function build() {
   fs.writeFileSync("dist/about.html", about);
 
   const methodology = await ejs.renderFile("views/methodology.ejs", {
+    assetVersion,
     title: "Methodology - Irish language map",
     description:
       "How the Irish language map is built: what the census figures measure, comparability caveats, and the Northern Ireland data notes.",

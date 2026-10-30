@@ -4,6 +4,8 @@ const PORT = 3000;
 const abilityData = require("./data/ability.json");
 
 app.set("view engine", "ejs");
+// See build.js: stamps the stylesheet and script URLs.
+app.locals.assetVersion = Date.now().toString(36);
 app.use(express.static("public"));
 // Serve the root data folder so the page can fetch data/ability.json the same
 // way it does on the static (GitHub Pages) build.
