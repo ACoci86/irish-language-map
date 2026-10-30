@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="48" height="28" viewBox="0 0 48 28">
+  <g id="Layer_1" data-name="Layer 1">
+    <path id="shaft" d="M3.015 20.02 C4.39 18.813 8.269 14.532 11.263 12.773 C14.256 11.014 17.624 9.943 20.976 9.467 C24.329 8.991 27.871 9.17 31.378 9.917 C34.884 10.664 40.242 13.277 42.015 13.949" fill="none" stroke="#333634" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="head" d="M34.008 5.011 C35.333 6.5 42.628 11.618 41.958 13.947 C41.288 16.275 31.983 18.143 29.988 18.983" fill="none" stroke="#333634" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

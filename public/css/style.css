@@ -106,7 +106,7 @@ h3,
 .topnav-inner {
   display: flex;
   align-items: center;
-  height: 124px;
+  height: 88px;
   padding: 0 20px;
 }
 
@@ -121,8 +121,8 @@ h3,
 /* The harpist logo is a detailed drawing, so it gets room to be seen. */
 .brand-logo {
   display: block;
-  width: 112px;
-  height: 112px;
+  width: 68px;
+  height: 68px;
 }
 
 /* The name on two lines with the proverb under it, set off from the logo
@@ -136,7 +136,7 @@ h3,
 
 .brand-name {
   font-family: var(--hand);
-  font-size: 32px;
+  font-size: 26px;
   font-weight: 700;
   line-height: 1.02;
 }
@@ -146,9 +146,9 @@ h3,
 }
 
 .brand-tagline {
-  margin-top: 6px;
+  margin-top: 4px;
   font-family: var(--hand);
-  font-size: 16px;
+  font-size: 14px;
   letter-spacing: 0.04em;
   color: var(--muted);
 }
@@ -184,6 +184,55 @@ h3,
 .nav-spot,
 .nav-proverb {
   display: none;
+}
+
+/* ── Step by step on touch screens ──────────────
+   While the reader is inside a story section (map.js adds .snap-on to the
+   page), every step is a point the page must stop at, however hard they
+   flick: a fast scroll moves one step, it can't skip several. Mouse and
+   trackpad scrolling is left alone. */
+@media (hover: none) {
+  html.snap-on {
+    scroll-snap-type: y mandatory;
+  }
+
+  .opener-steps .step,
+  .scrolly-steps .step {
+    scroll-snap-align: center;
+    scroll-snap-stop: always;
+  }
+
+  /* The opener's steps are a screen tall: line each up with the top. The
+     first is only room for the title screen, which is the top of the page
+     (a point of its own, so the header can still be reached). */
+  .opener-steps .step {
+    scroll-snap-align: start;
+  }
+
+  .opener-steps .opener-spacer {
+    scroll-snap-align: none;
+    scroll-snap-stop: normal;
+  }
+
+  .topnav {
+    scroll-snap-align: start;
+  }
+
+  /* The way out below a story section: without a point after its last
+     step, the page would keep pulling back to it. */
+  .north-south,
+  .county-detail {
+    scroll-snap-align: start;
+  }
+}
+
+/* On phones the steps are invisible markers, and the graphic is watched
+   at 70% of the way down: park each step's top there. */
+@media (hover: none) and (max-width: 900px) {
+  .scrolly-steps .step {
+    scroll-snap-align: start;
+    scroll-margin-top: 70svh;
+  }
 }
 
 /* ── Page layout ────────────────────────────── */
@@ -1723,7 +1772,7 @@ h1 {
 /* ── Responsive ─────────────────────────────── */
 @media (max-width: 900px) {
   .topnav-inner {
-    height: 112px;
+    height: 76px;
     padding: 0 14px;
   }
 
@@ -1732,8 +1781,8 @@ h1 {
   }
 
   .brand-logo {
-    width: 84px;
-    height: 84px;
+    width: 54px;
+    height: 54px;
   }
 
   .brand-text {
@@ -1741,12 +1790,12 @@ h1 {
   }
 
   .brand-name {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .brand-tagline {
-    margin-top: 4px;
-    font-size: 12.5px;
+    margin-top: 3px;
+    font-size: 12px;
     letter-spacing: 0.02em;
   }
 
@@ -2109,10 +2158,18 @@ h1 {
     font-size: 15px;
   }
 
-  /* The 10 x 10 people (about 1.12 times as tall as wide) fit above the
-     caption too. */
+  /* The 10 x 10 people (1.35 times as tall as wide) fit in what's left
+     above the text box, after the readout (about 75px) and the source note
+     (about 60px): the figure is the full column wide so the note keeps its
+     width, and the people are centred in it, at most as wide as that room
+     allows. */
   .people-figure {
-    max-width: min(460px, calc((100svh - var(--head-h) - var(--cap-h) - 180px) / 1.12));
+    max-width: none;
+  }
+
+  .people {
+    width: min(460px, 100%, calc((100svh - var(--head-h) - var(--cap-h) - 46px - 8px - 140px) / 1.35));
+    margin: 0 auto;
   }
 
   .people-readout {
@@ -2136,8 +2193,8 @@ h1 {
    lines beside the Menu pill. */
 @media (max-width: 380px) {
   .brand-logo {
-    width: 70px;
-    height: 70px;
+    width: 48px;
+    height: 48px;
   }
 
   .brand {
@@ -2145,11 +2202,11 @@ h1 {
   }
 
   .brand-name {
-    font-size: 21px;
+    font-size: 19px;
   }
 
   .brand-tagline {
-    font-size: 11.5px;
+    font-size: 11px;
   }
 
   .nav-toggle {

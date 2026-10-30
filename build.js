@@ -24,9 +24,9 @@ async function build() {
   const index = await ejs.renderFile("views/index.ejs", {
     assetVersion,
     title: "Irish language map",
-    ogTitle: "Reported ability to speak Irish, 1851 to 2022",
+    ogTitle: "Where did the Irish language go?",
     description:
-      "Interactive map of the percentage of people able to speak Irish in each of Ireland's 32 counties, from the 1851 census to 2022.",
+      "A hand-drawn, scrolling story of who could speak Irish in each of Ireland's 32 counties, in every census from 1851 to 2022.",
     canonical: `${SITE}/`,
     abilityYears,
     defaultYear: "1851",
@@ -79,7 +79,7 @@ async function build() {
   fs.writeFileSync("dist/data/counties.geojson", JSON.stringify(countyShapes()));
 
   // 4. The social preview image referenced by the Open Graph tags.
-  fs.copyFileSync("docs/screenshot.png", "dist/screenshot.png");
+  fs.copyFileSync("docs/social-preview.jpg", "dist/social-preview.jpg");
 
   // Brand logo used in the nav, and the tab favicon.
   fs.copyFileSync("public/logo.png", "dist/logo.png");

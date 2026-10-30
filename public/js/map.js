@@ -409,6 +409,83 @@ function buildClosing() {
 const cueButton = (extra = "") =>
   `<button type="button" class="step-next ${extra}" aria-label="Next"><img src="img/scroll-cue.svg" alt=""></button>`;
 
+// Step-by-step scrolling on touch screens: page-level snapping (style.css)
+// is switched on only while a story section is on screen, so the ordinary
+// parts of the page keep scrolling freely.
+function buildSnapping() {
+  if (!window.matchMedia("(hover: none)").matches) return;
+  const inView = new Set();
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((e) => (e.isIntersecting ? inView.add(e.target) : inView.delete(e.target)));
+    document.documentElement.classList.toggle("snap-on", inView.size > 0);
+  });
+  document.querySelectorAll(".opener, .scrolly").forEach((section) => observer.observe(section));
+
+  // The browser's snapping should stop a hard fling at the next step, but
+  // not every browser does. So when the page comes to rest more than one
+  // step from where the reader started, glide back to the step just after
+  // the start (or just before it, going up): a fling can never skip.
+  const html = document.documentElement;
+  const phone = window.matchMedia("(max-width: 900px)");
+  // Where the page rests at each step: the top of the page, then every
+  // step in order (as in style.css).
+  const stops = () => [
+    0,
+    ...[...document.querySelectorAll(".opener-step, .scrolly-steps .step")].map((step) => {
+      const top = step.getBoundingClientRect().top + window.scrollY;
+      if (step.classList.contains("opener-step")) return top;
+      return phone.matches ? top - 0.7 * window.innerHeight : top + step.offsetHeight / 2 - window.innerHeight / 2;
+    }),
+  ];
+  let last = null;
+  let touching = false;
+  let timer = null;
+  const settle = () => {
+    if (!html.classList.contains("snap-on") || cueScrolling) {
+      last = null;
+      return;
+    }
+    const y = window.scrollY;
+    const points = stops();
+    const here = points.findIndex((p) => Math.abs(p - y) <= 24);
+    if (here < 0) return; // between points: the browser is still settling
+    if (last !== null && Math.abs(here - last) > 1) {
+      last += Math.sign(here - last);
+      window.scrollTo({ top: points[last], behavior: animate ? "smooth" : "auto" });
+      return;
+    }
+    last = here;
+  };
+  window.addEventListener(
+    "scroll",
+    () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!touching) settle();
+      }, 160);
+    },
+    { passive: true },
+  );
+  // Where the reader starts (the top of the page, or wherever a reload left
+  // them) counts as a resting step too.
+  setTimeout(settle, 600);
+  window.addEventListener("touchstart", () => (touching = true), { passive: true });
+  ["touchend", "touchcancel"].forEach((type) => window.addEventListener(type, () => (touching = false), { passive: true }));
+}
+
+// True while a scroll cue is gliding the page, so the step guard doesn't
+// treat it as a fling.
+let cueScrolling = false;
+const glide = (y, duration) => {
+  cueScrolling = true;
+  const done = () => setTimeout(() => (cueScrolling = false), 250);
+  if (animate) gsap.to(window, { scrollTo: y, duration, ease: "power2.inOut", onComplete: done });
+  else {
+    window.scrollTo(0, y);
+    done();
+  }
+};
+
 function buildStepCues() {
   document.querySelectorAll(".step:not(.opener-spacer)").forEach((step) => {
     const card = step.classList.contains("opener-step") ? step.querySelector("p") : step;
@@ -470,8 +547,7 @@ function buildStepCues() {
     // their top at the top of the screen.
     const offset = target.classList.contains("opener-step") ? 0 : target.classList.contains("step") ? window.innerHeight * band : 0;
     const y = target.getBoundingClientRect().top + window.scrollY - offset;
-    if (animate) gsap.to(window, { scrollTo: y, duration: 1, ease: "power2.inOut" });
-    else window.scrollTo(0, y);
+    glide(y, 1);
   });
 }
 
@@ -487,8 +563,7 @@ function buildScrollHint() {
     // An opener step is a full screen tall with its sentence at the foot,
     // so land its top at the top of the screen.
     const y = first.getBoundingClientRect().top + window.scrollY;
-    if (animate) gsap.to(window, { scrollTo: y, duration: 1.2, ease: "power2.inOut" });
-    else window.scrollTo(0, y);
+    glide(y, 1.2);
   });
 
   if (!animate) return;
@@ -1717,12 +1792,52 @@ function renderNorthSouth() {
   else drawNorthSouthBars(nsView.groups, nsView.latest, el);
 }
 
-// A short hand-inked arrow, with an open head, from a label to a dot.
+// The callout arrow, drawn in VectorCraft (img/callout-arrow.svg): a hand-
+// inked curve with an open head. Its tail is at
+// (3, 20) and its tip at (42, 14) in its own 48 x 28 drawing. Loaded once,
+// then placed, turned and scaled for each callout.
+let calloutArrow = null;
+const ARROW_TAIL = [3, 20];
+const ARROW_TIP = [42, 14];
+
+async function loadCalloutArrow() {
+  try {
+    const text = await (await fetch("img/callout-arrow.svg")).text();
+    const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+    const part = (...ids) => ids.map((id) => doc.getElementById(id).outerHTML).join("");
+    // The shaft stretches to reach a dot; the head keeps its own size.
+    calloutArrow = { shaft: part("shaft"), head: part("head") };
+  } catch (error) {
+    calloutArrow = null; // the rough.js arrow below stands in
+  }
+}
+
+// A short hand-inked arrow from a label to a dot: the VectorCraft drawing
+// moved to `from`, turned toward the dot and scaled to reach it.
 function inkArrow(svg, from, to, seed) {
-  const rc = rough.svg(svg.node());
   const dx = to[0] - from[0], dy = to[1] - from[1];
   const len = Math.hypot(dx, dy) || 1;
   const end = [to[0] - (dx / len) * 9, to[1] - (dy / len) * 9];
+  if (calloutArrow) {
+    const own = [ARROW_TIP[0] - ARROW_TAIL[0], ARROW_TIP[1] - ARROW_TAIL[1]];
+    const ownAngle = (Math.atan2(own[1], own[0]) * 180) / Math.PI;
+    const target = (Math.atan2(end[1] - from[1], end[0] - from[0]) * 180) / Math.PI;
+    const stretch = Math.hypot(end[0] - from[0], end[1] - from[1]) / Math.hypot(...own);
+    const place = (markup, transform) => {
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("transform", transform);
+      g.innerHTML = markup;
+      svg.node().appendChild(g);
+      return g;
+    };
+    // Straighten the drawing along its own tail-to-tip line, stretch it to
+    // the distance, then turn it toward the dot.
+    return [
+      place(calloutArrow.shaft, `translate(${from}) rotate(${target}) scale(${stretch} 1) rotate(${-ownAngle}) translate(${-ARROW_TAIL[0]} ${-ARROW_TAIL[1]})`),
+      place(calloutArrow.head, `translate(${end}) rotate(${target}) rotate(${-ownAngle}) translate(${-ARROW_TIP[0]} ${-ARROW_TIP[1]})`),
+    ];
+  }
+  const rc = rough.svg(svg.node());
   const ctrl = [(from[0] + end[0]) / 2 - dy * 0.15, (from[1] + end[1]) / 2 + dx * 0.15];
   const dir = Math.atan2(end[1] - ctrl[1], end[0] - ctrl[0]);
   const arm = (turn) => [end[0] - 7 * Math.cos(dir + turn), end[1] - 7 * Math.sin(dir + turn)];
@@ -2415,6 +2530,7 @@ async function initialiseMap() {
   const [, opener] = await Promise.all([
     loadAllData(),
     fetch("data/opener.geojson").then((response) => response.json()),
+    loadCalloutArrow(),
   ]);
   // The main map's boundaries start downloading now, behind the opener.
   const boundaries = fetch("data/counties.geojson");
@@ -2423,6 +2539,7 @@ async function initialiseMap() {
   const gathered = buildOpenerMap() || Promise.resolve();
   buildScrollHint();
   buildStepCues();
+  buildSnapping();
 
   // The rest of the page is screens away. It's built once the opening has
   // played (so the counties never freeze mid-flight), and one piece per

@@ -24,9 +24,9 @@ app.get(["/", "/index.html"], (req, res) => {
 
   res.render("index", {
     title: "Irish language map",
-    ogTitle: "Reported ability to speak Irish, 1851 to 2022",
+    ogTitle: "Where did the Irish language go?",
     description:
-      "Interactive map of the percentage of people able to speak Irish in each of Ireland's 32 counties, from the 1851 census to 2022.",
+      "A hand-drawn, scrolling story of who could speak Irish in each of Ireland's 32 counties, in every census from 1851 to 2022.",
     canonical: "https://irishlanguagemap.org/",
     abilityYears,
     defaultYear: "1851",
@@ -37,7 +37,7 @@ app.get("/about.html", (req, res) => {
   res.render("about", {
     title: "About - Irish language map",
     description:
-      "About the Irish language map: what it shows, the census data sources, and credits.",
+      "About the Irish language map: who made it, what it shows, and thanks to the people behind the data.",
     canonical: "https://irishlanguagemap.org/about.html",
   });
 });
