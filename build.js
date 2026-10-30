@@ -69,6 +69,8 @@ async function build() {
   fs.cpSync("public/css", "dist/css", { recursive: true });
   fs.cpSync("public/js", "dist/js", { recursive: true });
   fs.cpSync("public/img", "dist/img", { recursive: true });
+  fs.cpSync("public/fonts", "dist/fonts", { recursive: true });
+  fs.cpSync("public/vendor", "dist/vendor", { recursive: true });
 
   // 3. Copy only the data the site actually uses. The 92 MB raw geojson is
   //    deliberately excluded; the app only reads the 4 MB web version.
