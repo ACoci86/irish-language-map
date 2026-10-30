@@ -824,7 +824,7 @@ function updateLabels() {
 
     // Only counties that just gained a label fade in, so steps stay calm.
     if (animate && !previousLabels.has(c.county)) {
-      gsap.from(c.el, { opacity: 0, duration: 0.35, ease: "power1.out" });
+      gsap.from(c.el, { opacity: 0, duration: 0.2, ease: "power1.out" });
     }
   });
 
@@ -1100,8 +1100,18 @@ function fitIsland(animated = false) {
   const air = focusCounties ? 24 : 8;
   const options = { paddingTopLeft: [room, Math.max(air, headlineRoom())], paddingBottomRight: [room, air] };
   if (animated && animate) {
+    const bounds = focusBounds();
+    const target = map._getBoundsCenterZoom(bounds, options);
+    const size = map.getSize();
+    const zoomGap = Math.abs(map.getZoom() - target.zoom);
+    const drift = map.latLngToContainerPoint(target.center).distanceTo(size.divideBy(2)) / Math.min(size.x, size.y);
+    // Already there (the section's first step, say): no move at all, so the
+    // labels stay put instead of hiding for a move that never happens.
+    if (zoomGap < 0.03 && drift < 0.01) return;
     // The labels wait for the camera to arrive (see the move events below).
-    map.flyToBounds(focusBounds(), { ...options, duration: 1.7, easeLinearity: 0.25 });
+    // A short hop is quick; a long one takes up to a second.
+    const duration = Math.min(1.0, 0.55 + zoomGap * 0.2 + drift * 0.3);
+    map.flyToBounds(bounds, { ...options, duration, easeLinearity: 0.25 });
     return;
   }
   map.stop();
@@ -1202,7 +1212,7 @@ function travelTo(year) {
   }
   const dir = Math.sign(to - from);
   const count = Math.abs(to - from);
-  const pace = Math.max(110, Math.min(280, 2000 / count));
+  const pace = Math.max(70, Math.min(180, 1000 / count));
   let i = from;
   travelling = true;
   const next = () => {
