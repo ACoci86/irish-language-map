@@ -1318,7 +1318,8 @@ function measureHeight(host, texts) {
 }
 
 function steadySizes() {
-  if (!findingEl || !allData) return;
+  // Not before the census data has loaded (a resize can fire during loading).
+  if (!findingEl || !years.length) return;
   // The headline: every step's line, plus the lines for exploring.
   const lines = [...document.querySelectorAll(".scrolly:not(.scrolly-chart):not(.scrolly-people) .step[data-headline]")]
     .filter((step) => MAP_HEADLINES[step.dataset.headline])
