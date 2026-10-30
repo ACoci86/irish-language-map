@@ -756,7 +756,8 @@ function updateLabels() {
 
   // Each label goes on the side of the island its county is on.
   const callouts = [...labelled]
-    .filter((county) => county && layersByCounty[county])
+    .filter((county) => county && layersByCounty[county] && map.getBounds().contains(labelPoint(layersByCounty[county])))
+    .filter((county) => !focusCounties || focusCounties.includes(county) || county === pinnedCounty)
     .map((county) => {
       const point = map.latLngToContainerPoint(labelPoint(layersByCounty[county]));
       const anchor = [point.x + mapBox.left - box.left, point.y + mapBox.top - box.top];
@@ -1058,21 +1059,107 @@ async function loadCountyBoundaries(download) {
     style: styleCounty,
     onEachFeature: addCountyInteraction,
   }).addTo(map);
+  // Draw well beyond the screen (see redrawMapLayer), so the edges stay
+  // covered between redraws.
+  const renderer = countyLayer.getLayers()[0] && countyLayer.getLayers()[0]._renderer;
+  if (renderer) renderer.options.padding = 0.4;
 
   fitIsland();
 }
 
-// On phones the map's box changes height with the headline above it.
+// If the map's box changes size (a rotated phone, a resized window), refit
+// once it has settled, and never in the middle of a camera move.
+let refitTimer = null;
 new ResizeObserver(() => {
-  if (countyLayer) fitIsland();
+  clearTimeout(refitTimer);
+  refitTimer = setTimeout(() => {
+    if (countyLayer && !flying) fitIsland();
+  }, 100);
 }).observe(document.getElementById("map"));
 
-function fitIsland() {
+// The camera moves with the story, on every screen size: each map step can
+// name the counties it is about (data-focus), and the map flies in on them,
+// then back out for the overview steps. The fly is one long, eased move of
+// zoom and position together; the map never changes size meanwhile (nothing
+// else on the page moves with a step), so nothing interrupts it.
+let focusCounties = null;
+
+function focusBounds() {
+  const layers = (focusCounties || []).map((c) => layersByCounty[c]).filter(Boolean);
+  if (!layers.length) return countyLayer.getBounds();
+  return layers.reduce((b, l) => b.extend(l.getBounds()), L.latLngBounds([]));
+}
+
+// Room kept clear above the island for the line over the map (desktop).
+const headlineRoom = () => (window.matchMedia("(min-width: 901px)").matches ? 52 : 8);
+
+function fitIsland(animated = false) {
   map.invalidateSize();
   const room = calloutRoom();
-  map.fitBounds(countyLayer.getBounds(), { paddingTopLeft: [room, 8], paddingBottomRight: [room, 8] });
+  // A little more breathing room when framing a few counties.
+  const air = focusCounties ? 24 : 8;
+  const options = { paddingTopLeft: [room, Math.max(air, headlineRoom())], paddingBottomRight: [room, air] };
+  if (animated && animate) {
+    // The labels wait for the camera to arrive (see the move events below).
+    map.flyToBounds(focusBounds(), { ...options, duration: 1.7, easeLinearity: 0.25 });
+    return;
+  }
+  map.stop();
+  map.fitBounds(focusBounds(), { ...options, animate: false });
   updateLabels();
 }
+
+// The name labels hide while the camera moves, and come back, placed for
+// the new view, when it stops.
+let flying = false;
+
+// While the camera flies, Leaflet only stretches the picture it drew when the
+// move began: zooming in, that picture turns blurry (thick stripes, soft
+// outlines); zooming out, it shrinks into a small block with nothing drawn
+// around it until the very end. So the map layer is redrawn at the current
+// zoom every so often during the move (a redraw is a few milliseconds), and
+// the picture is never stretched far. Redraws pace themselves: never more
+// often than twice their own cost, so a slow phone isn't swamped.
+let drawnZoom = 0;
+let drawnCenter = null;
+let drawnAt = 0;
+let drawCost = 8;
+
+function redrawMapLayer() {
+  const layer = countyLayer && countyLayer.getLayers()[0];
+  const renderer = layer && layer._renderer;
+  if (!renderer) return;
+  const started = performance.now();
+  renderer._reset(); // what Leaflet does after a zoom: re-project and redraw
+  drawCost = performance.now() - started;
+  drawnZoom = map.getZoom();
+  drawnCenter = map.getCenter();
+  drawnAt = performance.now();
+}
+
+map.on("move", () => {
+  if (!flying || !drawnCenter) return;
+  const now = performance.now();
+  if (now - drawnAt < Math.max(60, drawCost * 3)) return;
+  const size = map.getSize();
+  const drift = map.latLngToContainerPoint(drawnCenter).distanceTo(size.divideBy(2));
+  if (Math.abs(map.getZoom() - drawnZoom) > 0.14 || drift > Math.min(size.x, size.y) * 0.18) redrawMapLayer();
+});
+
+map.on("movestart", () => {
+  flying = true;
+  drawnZoom = map.getZoom();
+  drawnCenter = map.getCenter();
+  drawnAt = performance.now();
+  calloutLabels.classList.add("is-moving");
+  calloutArrows.classList.add("is-moving");
+});
+map.on("moveend", () => {
+  flying = false;
+  calloutLabels.classList.remove("is-moving");
+  calloutArrows.classList.remove("is-moving");
+  if (countyLayer) updateLabels();
+});
 
 // The map box changes size with the layout, so refit the island to it.
 window.addEventListener("resize", () => {
@@ -1324,7 +1411,9 @@ const stepObserver = new IntersectionObserver(
       pinnedCounty = step.dataset.county || null;
       storyHeadline = step.dataset.headline || null;
       storyYear = step.dataset.year;
+      focusCounties = step.dataset.focus ? step.dataset.focus.split(",") : null;
       travelTo(step.dataset.year);
+      fitIsland(true);
     });
   },
   // The trigger band: a fifth of the screen around the middle on desktop,

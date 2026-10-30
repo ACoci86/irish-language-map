@@ -103,7 +103,7 @@
 
         <%# 03 · Geography: the map stays pinned while the steps move it
             through the census years. %>
-        <section class="scrolly">
+        <section class="scrolly scrolly-map">
             <div class="chapter-head">
                 <img class="spot" src="img/island.svg" alt="">
                 <h2 class="section-title">A changing landscape</h2>
@@ -132,9 +132,10 @@
                     </div>
                 </div>
 
-                <h2 class="finding" id="finding" aria-live="polite"></h2>
-
                 <div class="map-wrap">
+                    <%# The line for the map (inside, so on desktop it can sit over
+                        the map's top edge without changing the map's size). %>
+                    <h2 class="finding" id="finding" aria-live="polite"></h2>
                     <div id="map"></div>
                 </div>
 
@@ -150,19 +151,19 @@
                     <p>In <strong>1851</strong>, the darker the green, the more people spoke Irish. It lived along the <strong>west and south coasts</strong>.</p>
                     <p class="step-note">The east, with its towns and trade with Britain, had already moved to English.</p>
                 </div>
-                <div class="step" data-year="1851" data-county="GALWAY" data-headline="galway">
+                <div class="step" data-year="1851" data-county="GALWAY" data-headline="galway" data-focus="GALWAY,MAYO,CLARE,ROSCOMMON,SLIGO,LEITRIM">
                     <p><strong>Galway</strong> led at 69.1%. This first census to ask about Irish came just as the <strong>Great Famine</strong> ended.</p>
                     <p class="step-note">Hunger and emigration fell heavily on the countryside, where Irish was strongest.</p>
                 </div>
-                <div class="step" data-year="1911" data-county="MAYO" data-headline="mayo">
+                <div class="step" data-year="1911" data-county="MAYO" data-headline="mayo" data-focus="MAYO,GALWAY,SLIGO,ROSCOMMON,DONEGAL,LEITRIM">
                     <p>By 1911 the heartland had faded: <strong>Mayo</strong> fell from 65.8% to 46.1%.</p>
                     <p class="step-note">From 1831 the national schools taught in English. Historians debate how much that mattered.</p>
                 </div>
-                <div class="step" data-year="1926" data-headline="north-gap">
+                <div class="step" data-year="1926" data-headline="north-gap" data-focus="ANTRIM,DOWN,ARMAGH,TYRONE,FERMANAGH,LONDONDERRY">
                     <p>Then the six <strong>Northern Ireland</strong> counties turn grey, until 1991.</p>
                     <p class="step-note">The Northern census dropped the question in 1926. Grey means no record, not no speakers.</p>
                 </div>
-                <div class="step" data-year="1961" data-county="DUBLIN" data-headline="dublin">
+                <div class="step" data-year="1961" data-county="DUBLIN" data-headline="dublin" data-focus="DUBLIN,WICKLOW,KILDARE,MEATH,LOUTH,CARLOW">
                     <p><strong>Dublin</strong> rose from 3.7% in 1911 to 21.1% in 1961, while Galway kept falling.</p>
                     <p class="step-note">From 1922 Irish was compulsory in national schools. The census can&rsquo;t prove a link, but the timing is hard to miss.</p>
                 </div>
@@ -170,7 +171,7 @@
                     <p>The next decades were slow: by <strong>1981</strong> the east had crept up and the heartland had slipped.</p>
                     <p class="step-note">Dublin gained 7 points and Wicklow 5, while Galway lost 3.</p>
                 </div>
-                <div class="step" data-year="1991" data-headline="north-returns">
+                <div class="step" data-year="1991" data-headline="north-returns" data-focus="ANTRIM,DOWN,ARMAGH,TYRONE,FERMANAGH,LONDONDERRY">
                     <p>In <strong>1991</strong> the North reappears, for the first time since 1911, and is the palest on the map.</p>
                     <p class="step-note">The question returned after the Anglo-Irish Agreement of 1985.</p>
                 </div>
@@ -178,7 +179,7 @@
                     <p>In <strong>1996</strong> the whole Republic turned green at once.</p>
                     <p class="step-note">That year the CSO brought in a new question, so part of the leap may be the wording.</p>
                 </div>
-                <div class="step" data-year="2022" data-county="WICKLOW" data-headline="wicklow">
+                <div class="step" data-year="2022" data-county="WICKLOW" data-headline="wicklow" data-focus="WICKLOW,DUBLIN,WEXFORD,CARLOW,KILDARE,KILKENNY">
                     <p>By 2022 <strong>Wicklow</strong>, once at 0.1%, was at 39.0%. The old west&ndash;east divide had gone.</p>
                     <p class="step-note">The Republic peaked in 2002. The sharpest line left is the border.</p>
                 </div>

@@ -510,6 +510,127 @@ h1 {
   color: var(--green);
 }
 
+/* ── The map chapter on desktop ─────────────────
+   No boxes: each step is a big handwritten statement set straight on the
+   paper, with its note below; the map is larger, the camera moves with the
+   story (map.js). Phones keep the caption box. */
+/* Zoomed in, the map would end in hard rectangular edges: fade them into
+   the paper instead, on every screen size. */
+.scrolly-map #map {
+  -webkit-mask-image:
+    linear-gradient(to right, transparent, #000 9%, #000 91%, transparent),
+    linear-gradient(to bottom, transparent, #000 9%, #000 91%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent, #000 9%, #000 91%, transparent),
+    linear-gradient(to bottom, transparent, #000 9%, #000 91%, transparent);
+  mask-composite: intersect;
+}
+
+@media (min-width: 901px) {
+  .scrolly-map {
+    grid-template-columns: minmax(340px, 430px) minmax(0, 1fr);
+    column-gap: 24px;
+    max-width: 1240px;
+  }
+
+  .scrolly-map .step {
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+    opacity: 0.22;
+    transition: opacity 0.5s ease;
+  }
+
+  .scrolly-map .step.is-active {
+    opacity: 1;
+  }
+
+  .scrolly-map .step p {
+    font-family: var(--hand);
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1.12;
+    letter-spacing: 0.01em;
+  }
+
+  /* The history note: small, with a short orange pen stroke above it. */
+  .scrolly-map .step .step-note {
+    position: relative;
+    margin-top: 26px !important;
+    padding-top: 16px;
+    font-family: var(--sans);
+    font-size: 18px;
+    font-weight: 400;
+    line-height: 1.4;
+    letter-spacing: 0;
+    color: var(--muted);
+  }
+
+  .scrolly-map .step .step-note::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 64px;
+    height: 10px;
+    background: var(--pen-underline) left center / 100% 100% no-repeat;
+  }
+
+  /* The scroll cue sits under the text, on the left, not centred on a box. */
+  .scrolly-map .step .step-next {
+    position: static;
+    display: block;
+    margin: 18px 0 0 -2px;
+  }
+
+  .scrolly-map .map-wrap {
+    position: relative;
+    max-width: 1100px;
+  }
+
+  /* The map takes whatever height the timeline, headline and legend leave,
+     so nothing is clipped when the headline folds in and out. */
+  .scrolly-map .scrolly-graphic {
+    justify-content: safe center;
+  }
+
+  .scrolly-map .map-wrap {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 340px;
+  }
+
+  .scrolly-map #map {
+    flex: 1 1 auto;
+    height: auto;
+    position: relative;
+    z-index: 1;
+    min-height: 340px;
+  }
+
+  /* The line for the map sits over the map's top edge, where the island
+     leaves room for it (map.js), so the map never changes size: it fades in
+     when the reader explores (the big statement says it during the story). */
+  .scrolly-map .finding {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: 2;
+    margin: 0 auto;
+    font-size: 26px;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+
+  .scrolly-map .finding[data-mode^="story-"] {
+    opacity: 0;
+  }
+}
+
 /* ── Timeline ─────────────────────────────────
    A hand-drawn census bar that follows the scroll steps: a wobbly ink line
    over a pale green band, an orange stroke for the years gone by, and the
@@ -707,7 +828,9 @@ h1 {
 
 /* Hidden while the map travels through the censuses to a new step. */
 .callout-arrows.is-travelling,
-.callouts.is-travelling {
+.callouts.is-travelling,
+.callout-arrows.is-moving,
+.callouts.is-moving {
   opacity: 0;
   transition: opacity 0.15s ease;
 }
