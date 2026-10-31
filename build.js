@@ -80,10 +80,7 @@ async function build() {
   fs.writeFileSync("dist/data/opener.geojson", JSON.stringify(openerShapes()));
   fs.writeFileSync("dist/data/counties.geojson", JSON.stringify(countyShapes()));
 
-  // 4. The social preview image referenced by the Open Graph tags.
-  fs.copyFileSync("docs/social-preview.jpg", "dist/social-preview.jpg");
-
-  // Brand logo used in the nav, and the tab favicon.
+  // 4. Brand logo used in the nav and the Open Graph tags, and the tab favicon.
   fs.copyFileSync("public/logo.png", "dist/logo.png");
   fs.copyFileSync("public/favicon.png", "dist/favicon.png");
 

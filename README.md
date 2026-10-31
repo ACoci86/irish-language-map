@@ -8,14 +8,16 @@ A hand-drawn, scrolling story of who could speak Irish in each of Ireland's 32 c
 
 **Live:** https://irishlanguagemap.org/
 
-![Hand-drawn maps of Ireland in 1851 and 2022, beside the title](docs/social-preview.jpg)
-
 ## What's in it
 
 - **The story:** scroll from 1851 to today: where Irish was strong, how it fell, and how it spread out again, with maps, charts and short notes on the history.
 - **Your county:** guess its 1851 figure, then watch its whole history draw in.
 - **Every census:** drag a timeline through all the years and tap any county.
 - **Phones first:** it steps through the story one screen at a time on touch screens.
+
+## Support
+
+If you enjoy it, you can [buy me a coffee](https://buymeacoffee.com/acoci86).
 
 ## Data
 
