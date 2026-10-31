@@ -8,7 +8,7 @@ A hand-drawn, scrolling story of who could speak Irish in each of Ireland's 32 c
 
 **Live:** https://irishlanguagemap.org/
 
-## <img src="docs/icons/app-maps.png" alt="" width="32" height="32"> What's in it
+## <img src="docs/icons/ireland.png" alt="" width="32" height="32"> What's in it
 
 - **The story:** scroll from 1851 to today: where Irish was strong, how it fell, and how it spread out again, with maps, charts and short notes on the history.
 - **Your county:** guess its 1851 figure, then watch its whole history draw in.
@@ -51,4 +51,4 @@ To [Phelim Birch](https://bsky.app/profile/phelimbirch.bsky.social), who compile
 
 MIT, see [LICENSE](LICENSE). Census data © CSO and NISRA; boundaries © OSi and OSNI, under their open-data terms.
 
-Heading icons are from [SerenityOS](https://github.com/SerenityOS/serenity) (BSD 2-Clause), except the smiley, which is drawn in the same style.
+Heading icons are from [SerenityOS](https://github.com/SerenityOS/serenity) (BSD 2-Clause), except the smiley and the map of Ireland, which are drawn in the same style.
