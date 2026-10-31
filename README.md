@@ -51,4 +51,4 @@ To [Phelim Birch](https://bsky.app/profile/phelimbirch.bsky.social), who compile
 
 MIT, see [LICENSE](LICENSE). Census data © CSO and NISRA; boundaries © OSi and OSNI, under their open-data terms.
 
-Heading icons are from [SerenityOS](https://github.com/SerenityOS/serenity) (BSD 2-Clause), except the smiley and the map of Ireland, which are drawn in the same style.
+Heading icons are from [SerenityOS](https://github.com/SerenityOS/serenity) (BSD 2-Clause), except the smiley and the map of Ireland, which are drawn separately.
